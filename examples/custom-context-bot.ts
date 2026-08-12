@@ -1,6 +1,7 @@
-import { Bot, Context } from '@maxhub/max-bot-api';
+import { Bot } from '@tlman/max-bot-sdk/bot';
+import { Context } from '@tlman/max-bot-sdk/context';
 
-const token = process.env.BOT_TOKEN;
+const token = process.env.MAX_BOT_TOKEN;
 if (!token) throw new Error('Token must be provided');
 
 class CustomContext extends Context {

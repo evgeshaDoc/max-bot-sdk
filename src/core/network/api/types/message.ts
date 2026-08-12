@@ -1,18 +1,20 @@
-import { Attachment } from './attachment';
-import { ChatType } from './chat';
-import { MarkupElement } from './markup';
-import { User } from './user';
+import type { Attachment } from './attachment';
+import type { ChatType } from './chat';
+import type { MarkupElement } from './markup';
+import type { User } from './user';
+import type { Int64 } from './int64';
 
 export type MessageSender = User;
 
 export type MessageRecipient = {
-  chat_id: number | null;
+  chat_id: Int64 | null;
   chat_type: ChatType;
+  user_id: Int64 | null;
 };
 
 export type MessageBody = {
   mid: string;
-  seq: number;
+  seq: Int64;
   text: string | null;
   attachments: Attachment[] | null;
   markup?: MarkupElement[] | null;
@@ -23,7 +25,7 @@ export type MessageLinkType = 'forward' | 'reply';
 export type LinkedMessage = {
   type: MessageLinkType;
   sender?: MessageSender | null;
-  chat_id?: number;
+  chat_id?: Int64;
   message: MessageBody;
 };
 
@@ -31,17 +33,12 @@ export type MessageStat = {
   views: number;
 };
 
-export type MessageConstructor = User;
-
 export type Message = {
   sender?: MessageSender | null;
   recipient: MessageRecipient;
-  timestamp: number;
+  timestamp: Int64;
   link?: LinkedMessage | null;
-  body: MessageBody;
+  body: MessageBody | null;
   stat?: MessageStat | null;
   url?: string | null;
-  constructor?: MessageConstructor | null;
 };
-
-export type ConstructedMessage = Pick<Message, 'sender' | 'timestamp' | 'link' | 'body'>;

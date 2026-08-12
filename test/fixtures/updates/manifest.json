@@ -1,0 +1,23 @@
+{
+  "source": "https://dev.max.ru/docs-api/objects/Update",
+  "secondarySource": "https://github.com/max-messenger/max-bot-api-client-go/tree/b9ac3728162b743a36a597ed1432d96bfb69a1cb/stabs",
+  "capturedAt": "2026-08-13",
+  "redaction": "Synthetic payloads preserve documented shapes and unsafe int64 lexemes; all IDs, text, URLs, and secrets are fictitious.",
+  "fixtures": {
+    "bot_added.json": "170a6ece45d996fe850c69d1f90f0a95bd21dc325642e586c3a1964fa3a12b7d",
+    "bot_removed.json": "4271bee8b562e71b3350c658e0137ee0285c17af55a0cabd1aec806b773eab84",
+    "bot_started.json": "3bfb841f572fba2bd8b613073ede7ed63ed742178aa0c11260509fc0a9eba730",
+    "bot_stopped.json": "4ebd39c9de1541e2bb72919e071bc64fb3fad81447d75efdb450489597c93c05",
+    "chat_title_changed.json": "3d9c3f2ae4f9e680a16950dffbff03157b1fbe3bf3e579d314e3d67d0518673b",
+    "dialog_cleared.json": "3532ee0fc2f8d035b2a1252c2db0dd9dbe8bf72e39623e41bbc20e91736e0f30",
+    "dialog_muted.json": "6e816542826e3485b60ecc9f5f5fe6fb97a439973bb86fd18a1d1ef13d991687",
+    "dialog_removed.json": "c76d574a09852606f3ddc99f3b263bbd02a23273bbfad1877e19c425dfe6a797",
+    "dialog_unmuted.json": "f28dbd23f4edfc15fa232d3d2fb2cbd4649d224b5f76b03e1d8cb2c1e93da7ab",
+    "message_callback.json": "604b9cc1fd908f2efa7ceac43998b331ab2284a120d6b25e084d6eb35d352807",
+    "message_created.json": "173856c646c1e85bb3bc22001a0af38f7cc1c01c0c27468b8e2a6b437aad0924",
+    "message_edited.json": "e93320f38e1a67614105e61af486cba5e67357a3f74c3f51f7bfc986883b09a3",
+    "message_removed.json": "cb51ce8e787d02371d65bc57bd2a9e4c442311db0a771a34eb33b13f629a0d0b",
+    "user_added.json": "32e483e827741adbd2ec8f348af984ca41b2dd8b83537e16ecaffe27e3e07875",
+    "user_removed.json": "618b05ac8da419af920d98dfe3e928525fb67375e23859a9740bc8661e3d5ddd"
+  }
+}

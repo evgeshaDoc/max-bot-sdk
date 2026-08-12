@@ -1,5 +1,9 @@
 node_modules
 dist
+.test-dist
+.omx
+*.tgz
+live-evidence
 
 *.log
 *.env

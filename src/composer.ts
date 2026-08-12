@@ -1,51 +1,53 @@
 import type { Guard, MaybeArray } from './core/helpers/types';
-import type { Message, UpdateType } from './core/network/api';
+import type { Int64 } from './core/network/api/types/int64';
+import type { Message } from './core/network/api/types/message';
+import type { UpdateType } from './core/network/api/types/update';
 
 import type {
   Middleware, MiddlewareFn, MiddlewareObj, NextFn,
 } from './middleware';
 
-import { Context, type FilteredContext } from './context';
-import { createdMessageBodyHas } from './filters';
+import type { Context, FilteredContext } from './context';
 
 type Triggers = MaybeArray<string | RegExp>;
 
-type UpdateFilter<Ctx extends Context> = UpdateType | Guard<Ctx['update']>;
+type UpdateFilter<ContextType extends Context> = UpdateType | Guard<ContextType['update']>;
 
-export class Composer<Ctx extends Context> implements MiddlewareObj<Ctx> {
-  private handler: MiddlewareFn<Ctx>;
+export class Composer<ContextType extends Context> implements MiddlewareObj<ContextType> {
+  private handler: MiddlewareFn<ContextType>;
 
-  constructor(...middlewares: Array<Middleware<Ctx>>) {
+  constructor(...middlewares: Array<Middleware<ContextType>>) {
     this.handler = Composer.compose(middlewares);
   }
 
-  middleware() {
+  /** Returns the current composed middleware pipeline. */
+  middleware(): MiddlewareFn<ContextType> {
     return this.handler;
   }
 
-  use(...middlewares: Array<Middleware<Ctx>>) {
+  /** Appends middleware to this composer. */
+  use(...middlewares: Array<Middleware<ContextType>>): this {
     this.handler = Composer.compose([this.handler, ...middlewares]);
     return this;
   }
 
-  on<Filter extends UpdateType | Guard<Ctx['update']>>(
+  on<Filter extends UpdateType | Guard<ContextType['update']>>(
     filters: MaybeArray<Filter>,
-    ...middlewares: Array<Middleware<FilteredContext<Ctx, Filter>>>
+    ...middlewares: Array<Middleware<FilteredContext<ContextType, Filter>>>
   ) {
     return this.use(this.filter(filters, ...middlewares));
   }
 
   command(
     command: Triggers,
-    ...middlewares: Array<Middleware<FilteredContext<Ctx, 'message_created'>>>
+    ...middlewares: Array<Middleware<FilteredContext<ContextType, 'message_created'>>>
   ) {
     const normalizedTriggers = normalizeTriggers(command);
-    const filter = createdMessageBodyHas('text');
-
     const handler = Composer.compose(middlewares);
 
-    return this.use(this.filter(filter, (ctx, next) => {
-      const text = extractTextFromMessage(ctx.message, ctx.myId)!;
+    return this.use(this.filter('message_created', (ctx, next) => {
+      const text = extractTextFromMessage(ctx.message, ctx.myId);
+      if (!text) return next();
 
       const cmd = text.slice(1);
 
@@ -63,15 +65,14 @@ export class Composer<Ctx extends Context> implements MiddlewareObj<Ctx> {
 
   hears(
     triggers: Triggers,
-    ...middlewares: Array<Middleware<FilteredContext<Ctx, 'message_created'>>>
+    ...middlewares: Array<Middleware<FilteredContext<ContextType, 'message_created'>>>
   ) {
     const normalizedTriggers = normalizeTriggers(triggers);
-    const filter = createdMessageBodyHas('text');
-
     const handler = Composer.compose(middlewares);
 
-    return this.use(this.filter(filter, (ctx, next) => {
-      const text = extractTextFromMessage(ctx.message, ctx.myId)!;
+    return this.use(this.filter('message_created', (ctx, next) => {
+      const text = extractTextFromMessage(ctx.message, ctx.myId);
+      if (!text) return next();
 
       for (const trigger of normalizedTriggers) {
         const match = trigger(text);
@@ -87,7 +88,7 @@ export class Composer<Ctx extends Context> implements MiddlewareObj<Ctx> {
 
   action(
     triggers: Triggers,
-    ...middlewares: Array<Middleware<FilteredContext<Ctx, 'message_callback'>>>
+    ...middlewares: Array<Middleware<FilteredContext<ContextType, 'message_callback'>>>
   ) {
     const normalizedTriggers = normalizeTriggers(triggers);
     const handler = Composer.compose(middlewares);
@@ -109,43 +110,50 @@ export class Composer<Ctx extends Context> implements MiddlewareObj<Ctx> {
     }));
   }
 
-  filter<Filter extends UpdateFilter<Ctx>>(
+  filter<Filter extends UpdateFilter<ContextType>>(
     filters: MaybeArray<Filter>,
-    ...middlewares: Array<Middleware<FilteredContext<Ctx, Filter>>>
-  ): MiddlewareFn<Ctx> {
+    ...middlewares: Array<Middleware<FilteredContext<ContextType, Filter>>>
+  ): MiddlewareFn<ContextType> {
     const handler = Composer.compose(middlewares);
     return (ctx, next) => {
       return ctx.has(filters) ? handler(ctx, next) : next();
     };
   }
 
-  static flatten<C extends Context>(mw: Middleware<C>): MiddlewareFn<C> {
-    return typeof mw === 'function'
-      ? mw
-      : (ctx, next) => mw.middleware()(ctx, next);
+  static flatten<NestedContext extends Context>(
+    middleware: Middleware<NestedContext>,
+  ): MiddlewareFn<NestedContext> {
+    return typeof middleware === 'function'
+      ? middleware
+      : (context, next) => middleware.middleware()(context, next);
   }
 
-  static concat<C extends Context>(
-    first: MiddlewareFn<C>,
-    andThen: MiddlewareFn<C>,
-  ): MiddlewareFn<C> {
-    return async (ctx, next) => {
+  static concat<NestedContext extends Context>(
+    first: MiddlewareFn<NestedContext>,
+    andThen: MiddlewareFn<NestedContext>,
+  ): MiddlewareFn<NestedContext> {
+    return async (context, next) => {
       let nextCalled = false;
-      await first(ctx, async () => {
+      await first(context, async () => {
         if (nextCalled) {
           throw new Error('`next` already called before!');
         }
         nextCalled = true;
-        await andThen(ctx, next);
+        await andThen(context, next);
       });
     };
   }
 
-  static pass<C extends Context>(_ctx: C, next: NextFn) {
+  static pass<NestedContext extends Context>(
+    _context: NestedContext,
+    next: NextFn,
+  ): Promise<void> {
     return next();
   }
 
-  static compose<C extends Context>(middlewares: Array<Middleware<C>>) {
+  static compose<NestedContext extends Context>(
+    middlewares: Array<Middleware<NestedContext>>,
+  ): MiddlewareFn<NestedContext> {
     if (!Array.isArray(middlewares)) {
       throw new Error('Middlewares must be an array');
     }
@@ -156,7 +164,7 @@ export class Composer<Ctx extends Context> implements MiddlewareObj<Ctx> {
   }
 }
 
-const normalizeTriggers = (triggers: Triggers) => {
+function normalizeTriggers(triggers: Triggers) {
   return (Array.isArray(triggers) ? triggers : [triggers]).map((trigger) => {
     if (trigger instanceof RegExp) {
       return (value = '') => {
@@ -168,12 +176,14 @@ const normalizeTriggers = (triggers: Triggers) => {
     const regex = new RegExp(`^${trigger}$`);
     return (value: string) => regex.exec(value.trim());
   });
-};
+}
 
-const extractTextFromMessage = (message: Message, myId?: number) => {
-  const { text } = message.body;
+function extractTextFromMessage(message: Message, myId?: Int64) {
+  const { body } = message;
+  if (!body) return undefined;
+  const { text } = body;
 
-  const mention = message.body.markup?.find((m) => {
+  const mention = body.markup?.find((m) => {
     return m.type === 'user_mention';
   });
 
@@ -186,4 +196,4 @@ const extractTextFromMessage = (message: Message, myId?: number) => {
   }
 
   return text;
-};
+}

@@ -1,6 +1,8 @@
-import { Bot, Keyboard } from '@maxhub/max-bot-api';
+import { Bot } from '@tlman/max-bot-sdk/bot';
+import * as button from '@tlman/max-bot-sdk/buttons';
+import { inlineKeyboard } from '@tlman/max-bot-sdk/keyboard';
 
-const token = process.env.BOT_TOKEN;
+const token = process.env.MAX_BOT_TOKEN;
 if (!token) throw new Error('Token not provided');
 
 const bot = new Bot(token);
@@ -13,8 +15,8 @@ bot.api.setMyCommands([
 ]);
 
 const defaultKeyboard = [
-  [Keyboard.button.link('❤️', 'https://dev.max.ru/')],
-  [Keyboard.button.callback('Remove message', 'remove_message', { intent: 'negative' })],
+  [button.link('❤️', 'https://dev.max.ru/')],
+  [button.callback('Remove message', 'remove_message', { intent: 'negative' })],
 ];
 
 bot.action('remove_message', async (ctx) => {
@@ -28,11 +30,11 @@ bot.action('remove_message', async (ctx) => {
 
 /*  Callback keyboard  */
 
-const callbackKeyboard = Keyboard.inlineKeyboard([
+const callbackKeyboard = inlineKeyboard([
   [
-    Keyboard.button.callback('default', 'color:default'),
-    Keyboard.button.callback('positive', 'color:positive', { intent: 'positive' }),
-    Keyboard.button.callback('negative', 'color:negative', { intent: 'negative' }),
+    button.callback('default', 'color:default'),
+    button.callback('positive', 'color:positive', { intent: 'positive' }),
+    button.callback('negative', 'color:negative', { intent: 'negative' }),
   ],
   ...defaultKeyboard,
 ]);
@@ -46,6 +48,7 @@ bot.action(/color:(.+)/, async (ctx) => {
     message: {
       text: `Your choice: ${ctx.match?.[1]} color`,
       attachments: [],
+      link: null,
     },
   });
 });
@@ -55,8 +58,8 @@ bot.action(/color:(.+)/, async (ctx) => {
 bot.command('geoLocation', async (ctx) => {
   return ctx.reply('GeoLocation keyboard', {
     attachments: [
-      Keyboard.inlineKeyboard([
-        [Keyboard.button.requestGeoLocation('Send geoLocation')],
+      inlineKeyboard([
+        [button.requestGeoLocation('Send geoLocation')],
         ...defaultKeyboard,
       ]),
     ],
@@ -73,8 +76,8 @@ bot.on('message_created', async (ctx, next) => {
 bot.command('contact', async (ctx) => {
   return ctx.reply('Contact keyboard', {
     attachments: [
-      Keyboard.inlineKeyboard([
-        [Keyboard.button.requestContact('Send my contact')],
+      inlineKeyboard([
+        [button.requestContact('Send my contact')],
         ...defaultKeyboard,
       ]),
     ],
@@ -95,8 +98,8 @@ bot.command(/createChat(.+)?/, async (ctx) => {
   }
   return ctx.reply('Create chat keyboard', {
     attachments: [
-      Keyboard.inlineKeyboard([[
-        Keyboard.button.chat(`Create chat "${chatTitle}"`, chatTitle),
+      inlineKeyboard([[
+        button.chat(`Create chat "${chatTitle}"`, chatTitle),
       ]]),
     ],
   });

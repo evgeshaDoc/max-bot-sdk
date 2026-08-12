@@ -1,16 +1,19 @@
-import { Context } from './context';
+import type { Context } from './context';
 
-type MaybePromise<T> = T | Promise<T>;
+type MaybePromise<Value> = Value | Promise<Value>;
 
 export type NextFn = () => Promise<void>;
 
-export type MiddlewareFn<Ctx extends Context> = (
-  ctx: Ctx,
+export type MiddlewareFn<ContextType extends Context> = (
+  context: ContextType,
   next: NextFn,
 ) => MaybePromise<unknown>;
 
-export interface MiddlewareObj<Ctx extends Context> {
-  middleware: () => MiddlewareFn<Ctx>;
+/** Object exposing Composer-compatible middleware. */
+export interface MiddlewareObj<ContextType extends Context> {
+  /** Returns the middleware function. */
+  middleware: () => MiddlewareFn<ContextType>;
 }
 
-export type Middleware<Ctx extends Context> = MiddlewareFn<Ctx> | MiddlewareObj<Ctx>;
+export type Middleware<ContextType extends Context> =
+  MiddlewareFn<ContextType> | MiddlewareObj<ContextType>;

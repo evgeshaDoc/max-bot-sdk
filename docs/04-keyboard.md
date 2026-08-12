@@ -1,16 +1,19 @@
 # `4` Клавиатура
-Для упрощения работы с клавиатурой вы можете использовать KeyboardBuilder.
+Клавиатура и кнопки импортируются напрямую из отдельных модулей.
 
 ```typescript
-const keyboard = Keyboard.inlineKeyboard([
+import { inlineKeyboard } from '@tlman/max-bot-sdk/keyboard';
+import * as button from '@tlman/max-bot-sdk/buttons';
+
+const keyboard = inlineKeyboard([
   // 1-я строка с 3-мя кнопками
   [
-    Keyboard.button.callback('default', 'color:default'),
-    Keyboard.button.callback('positive', 'color:positive', { intent: 'positive' }),
-    Keyboard.button.callback('negative', 'color:negative', { intent: 'negative' }),
+    button.callback('default', 'color:default'),
+    button.callback('positive', 'color:positive', { intent: 'positive' }),
+    button.callback('negative', 'color:negative', { intent: 'negative' }),
   ], 
   // 2-я строка с 1-й кнопкой
-  [Keyboard.button.link('Открыть Max', 'https://max.ru')],
+  [button.link('Открыть Max', 'https://max.ru')],
 ]);
 ```
 ### Типы кнопок
@@ -46,13 +49,16 @@ button.requestGeoLocation(text: string, extra?: { quick?: boolean });
 button.chat(text: string, chatTitle: string, extra?: { 
   chat_description?: string | null;
   start_payload?: string | null;
-  uuid?: string | null; 
+  uuid?: number | null;
 });
 ```
 Добавляет кнопку создания чата. При нажатии на неё будет создан новый чат с ботом и пользователем.
 
 #### OpenApp
 ```typescript
-button.openApp(text: string, webApp?: string, contactId?: number, payload?: string);
+button.openApp(text: string, webApp: string, options?: {
+  contactId?: Int64 | null;
+  payload?: string | null;
+});
 ```
 Добавляет кнопку для запуска мини-приложения. При нажатии на неё откроется окно с мини-приложением бота, ссылка на которого указана в параметре webApp.

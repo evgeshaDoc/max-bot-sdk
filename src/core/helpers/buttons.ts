@@ -1,65 +1,75 @@
-import {
+import type { Int64 } from '../network/api/types/int64';
+import type {
   Button,
-  CallbackButton, ChatButton,
+  CallbackButton,
+  ChatButton,
   LinkButton,
   OpenAppButton,
   RequestContactButton,
   RequestGeoLocationButton,
-} from '../network/api';
+} from '../network/api/types/keyboard';
 
-type MakeExtra<
-    T extends Button,
-    O extends keyof Omit<T, 'text' | 'type'> | '' = '',
-> = Omit<T, 'text' | 'type' | O>;
+type ButtonExtra<
+  ButtonType extends Button,
+  Omitted extends keyof Omit<ButtonType, 'text' | 'type'> | '' = '',
+> = Omit<ButtonType, 'text' | 'type' | Omitted>;
 
-export const callback = (
+export interface OpenAppOptions {
+  readonly contactId?: Int64 | null;
+  readonly payload?: string | null;
+}
+
+/** Creates an inline callback button. */
+export function callback(
   text: string,
   payload: string,
-  extra?: MakeExtra<CallbackButton, 'payload'>,
-): CallbackButton => {
+  extra?: ButtonExtra<CallbackButton, 'payload'>,
+): CallbackButton {
   return {
     type: 'callback', text, payload, ...extra,
   };
-};
+}
 
-export const link = (text: string, url: string): LinkButton => {
-  return {
-    type: 'link', text, url,
-  };
-};
+/** Creates a button that opens an external URL. */
+export function link(text: string, url: string): LinkButton {
+  return { type: 'link', text, url };
+}
 
-export const requestContact = (text: string): RequestContactButton => {
-  return {
-    type: 'request_contact', text,
-  };
-};
+/** Creates a button requesting the user's contact. */
+export function requestContact(text: string): RequestContactButton {
+  return { type: 'request_contact', text };
+}
 
-export const requestGeoLocation = (
+/** Creates a button requesting the user's location. */
+export function requestGeoLocation(
   text: string,
-  extra?: MakeExtra<RequestGeoLocationButton>,
-): RequestGeoLocationButton => {
-  return {
-    type: 'request_geo_location', text, ...extra,
-  };
-};
+  extra?: ButtonExtra<RequestGeoLocationButton>,
+): RequestGeoLocationButton {
+  return { type: 'request_geo_location', text, ...extra };
+}
 
-export const chat = (
+/** Creates a button that starts a chat with the bot. */
+export function chat(
   text: string,
   chatTitle: string,
-  extra?: MakeExtra<ChatButton, 'chat_title'>,
-): ChatButton => {
+  extra?: ButtonExtra<ChatButton, 'chat_title'>,
+): ChatButton {
   return {
     type: 'chat', text, chat_title: chatTitle, ...extra,
   };
-};
+}
 
-export const openApp = (
+/** Creates a button that opens a MAX mini app. */
+export function openApp(
   text: string,
   webApp: string,
-  contactId?: number,
-  payload?: string,
-): OpenAppButton => {
+  options: OpenAppOptions = {},
+): OpenAppButton {
   return {
-    type: 'open_app', text, web_app: webApp, contact_id: contactId, payload
+    type: 'open_app',
+    text,
+    web_app: webApp,
+    contact_id: options.contactId,
+    payload: options.payload,
   };
-};
+}

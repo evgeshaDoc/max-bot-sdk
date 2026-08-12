@@ -1,12 +1,4 @@
-type SuccessResponse = {
-  success: true
-};
-
-type ErrorResponse = {
-  success: false;
-  message: string;
-};
-
+/** Result returned by MAX action endpoints, including typed business failures. */
 export type ActionResponse =
-  | SuccessResponse
-  | ErrorResponse;
+  | { readonly success: true; readonly message?: string }
+  | { readonly success: false; readonly message?: string };

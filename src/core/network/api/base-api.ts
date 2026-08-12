@@ -1,50 +1,56 @@
-import type { Client, ReqOptions } from './client';
-import { MaxError } from './error';
-
-import type { ApiMethods } from './modules/types';
-
-type ApiCallFn<HTTPMethod extends keyof ApiMethods> = <Method extends keyof ApiMethods[HTTPMethod]>(
-  method: Method,
-  // @ts-ignore
-  options: ApiMethods[HTTPMethod][Method]['req']
-  // @ts-ignore
-) => Promise<ApiMethods[HTTPMethod][Method]['res']>;
+import type { Client, HttpMethod, RequestOptions } from './client';
+import { MaxError, MaxErrorKind } from './error';
 
 export class BaseApi {
-  private readonly call: Client['call'];
+  private readonly transportClient: Client;
 
   constructor(client: Client) {
-    this.call = client.call;
+    this.transportClient = client;
   }
 
-  private callApi = async (method: string, options: ReqOptions) => {
-    const result = await this.call({
-      method,
-      options,
-    });
-    if (result.status !== 200) {
-      throw new MaxError(result.status, result.data);
+  protected async _get<Response>(path: string, options: RequestOptions = {}): Promise<Response> {
+    return this.call('GET', path, options);
+  }
+
+  protected async _post<Response>(path: string, options: RequestOptions = {}): Promise<Response> {
+    return this.call('POST', path, options);
+  }
+
+  protected async _patch<Response>(path: string, options: RequestOptions = {}): Promise<Response> {
+    return this.call('PATCH', path, options);
+  }
+
+  protected async _put<Response>(path: string, options: RequestOptions = {}): Promise<Response> {
+    return this.call('PUT', path, options);
+  }
+
+  protected async _delete<Response>(path: string, options: RequestOptions = {}): Promise<Response> {
+    return this.call('DELETE', path, options);
+  }
+
+  private async call<Response>(
+    method: HttpMethod,
+    path: string,
+    options: RequestOptions,
+  ): Promise<Response> {
+    const result = await this.transportClient.call({ path, options: { ...options, method } });
+    if (result.status < 200 || result.status >= 300) {
+      const details = getErrorDetails(result.data);
+      throw new MaxError('MAX API request failed', {
+        kind: MaxErrorKind.Http,
+        status: result.status,
+        code: details.code,
+        method,
+        path,
+        retryAfter: result.headers.get('retry-after') ?? undefined,
+        ambiguousOutcome: method !== 'GET' && result.status >= 500,
+      });
     }
-    return result.data;
-  };
+    return result.data as Response;
+  }
+}
 
-  protected _get: ApiCallFn<'GET'> = async (method, options) => {
-    return this.callApi(method, { ...options, method: 'GET' });
-  };
-
-  protected _post: ApiCallFn<'POST'> = async (method, options) => {
-    return this.callApi(method, { ...options, method: 'POST' });
-  };
-
-  protected _patch: ApiCallFn<'PATCH'> = async (method, options) => {
-    return this.callApi(method, { ...options, method: 'PATCH' });
-  };
-
-  protected _put: ApiCallFn<'PUT'> = async (method, options) => {
-    return this.callApi(method, { ...options, method: 'PUT' });
-  };
-
-  protected _delete: ApiCallFn<'DELETE'> = async (method, options) => {
-    return this.callApi(method, { ...options, method: 'DELETE' });
-  };
+function getErrorDetails(value: unknown): { readonly code?: string } {
+  if (typeof value !== 'object' || value === null || !('code' in value)) return {};
+  return typeof value.code === 'string' ? { code: value.code } : {};
 }

@@ -1,4 +1,4 @@
-import { UploadType } from '../../types';
+import type { UploadType } from '../../types/uploads';
 
 export type GetUploadUrlDTO = {
   query: {

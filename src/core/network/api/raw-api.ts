@@ -1,46 +1,34 @@
 import type { Client } from './client';
-import {
-  BaseApi, BotsApi, ChatsApi, MessagesApi, SubscriptionsApi, UploadsApi,
-} from './modules';
+import { BotsApi } from './modules/bots/api';
+import { ChatsApi } from './modules/chats/api';
+import { MessagesApi } from './modules/messages/api';
+import { SubscriptionsApi } from './modules/subscriptions/api';
+import { UploadsApi } from './modules/uploads/api';
+import { VideosApi } from './modules/videos/api';
 
-export class RawApi extends BaseApi {
-  constructor(private readonly client: Client) {
-    super(client);
-  }
+/** Typed access to the current MAX HTTP API. */
+export class RawApi {
+  readonly request: Client['request'];
 
-  public get = this._get;
+  readonly bots: BotsApi;
 
-  public post = this._post;
+  readonly chats: ChatsApi;
 
-  public patch = this._patch;
+  readonly messages: MessagesApi;
 
-  private _chats?: ChatsApi;
+  readonly subscriptions: SubscriptionsApi;
 
-  get chats() {
-    return (this._chats ??= new ChatsApi(this.client));
-  }
+  readonly uploads: UploadsApi;
 
-  private _bots?: BotsApi;
+  readonly videos: VideosApi;
 
-  get bots() {
-    return (this._bots ??= new BotsApi(this.client));
-  }
-
-  private _messages?: MessagesApi;
-
-  get messages() {
-    return (this._messages ??= new MessagesApi(this.client));
-  }
-
-  private _subscriptions?: SubscriptionsApi;
-
-  get subscriptions() {
-    return (this._subscriptions ??= new SubscriptionsApi(this.client));
-  }
-
-  private _uploads?: UploadsApi;
-
-  get uploads() {
-    return (this._uploads ??= new UploadsApi(this.client));
+  constructor(client: Client) {
+    this.request = client.request;
+    this.bots = new BotsApi(client);
+    this.chats = new ChatsApi(client);
+    this.messages = new MessagesApi(client);
+    this.subscriptions = new SubscriptionsApi(client);
+    this.uploads = new UploadsApi(client);
+    this.videos = new VideosApi(client);
   }
 }

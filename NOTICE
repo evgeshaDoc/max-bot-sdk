@@ -1,0 +1,6 @@
+@tlman/max-bot-sdk is maintained by Tlman and derived from the official MAX TypeScript Bot API client.
+
+Original project: https://github.com/max-messenger/max-bot-api-client-ts
+Original baseline: @maxhub/max-bot-api 0.2.5, commit 2e4263e359b161830f1fd636400482ed4aede13b
+
+Copyright and license terms are provided in LICENSE. MAX names and trademarks belong to their respective owners.

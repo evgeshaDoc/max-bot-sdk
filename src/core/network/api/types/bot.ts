@@ -1,10 +1,12 @@
-import { UserWithPhoto } from './user';
+import type { UserWithPhoto } from './user';
 
-export type BotCommand = {
+/** Command displayed by MAX clients for the bot. */
+export interface BotCommand {
   name: string;
   description?: string | null;
-};
+}
 
-export type BotInfo = UserWithPhoto & {
+/** Profile returned for the bot identified by the access token. */
+export interface BotInfo extends UserWithPhoto {
   commands?: BotCommand[] | null;
-};
+}

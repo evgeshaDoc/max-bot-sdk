@@ -1,9 +1,14 @@
-import { Bot, ImageAttachment, StickerAttachment, LocationAttachment } from '@maxhub/max-bot-api';
+import { Bot } from '@tlman/max-bot-sdk/bot';
+import {
+  ImageAttachment,
+  LocationAttachment,
+  StickerAttachment,
+} from '@tlman/max-bot-sdk/attachments';
 
 import fs from 'fs';
 import path from 'path';
 
-const token = process.env.BOT_TOKEN;
+const token = process.env.MAX_BOT_TOKEN;
 if (!token) throw new Error('Token not provided');
 
 const bot = new Bot(token);

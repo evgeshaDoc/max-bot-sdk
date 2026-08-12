@@ -1,11 +1,11 @@
-export type NullableObject<T> = {
-  [K in keyof T]: T[K] | null
+export type NullableObject<ObjectType> = {
+  [Key in keyof ObjectType]: ObjectType[Key] | null
 };
 
-export type MaybeArray<T> = T | T[];
+export type MaybeArray<Value> = Value | readonly Value[];
 
-export type MaybePromise<T> = T | Promise<T>;
+export type MaybePromise<Value> = Value | Promise<Value>;
 
-export type Guard<X = unknown, Y extends X = X> = (x: X) => x is Y;
-
-export type Guarded<F> = F extends (x: any) => x is infer T ? T : never;
+export type Guard<Input = unknown, Output extends Input = Input> = (
+  value: Input
+) => value is Output;

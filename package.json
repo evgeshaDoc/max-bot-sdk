@@ -1,38 +1,71 @@
 {
-  "name": "@maxhub/max-bot-api",
-  "version": "0.2.5",
-  "description": "Max Bot Framework",
-  "repository": "https://github.com/max-messenger/max-bot-api-client-ts",
-  "author": "Juice Development",
+  "name": "@tlman/max-bot-sdk",
+  "version": "0.2.5-tlman.1",
+  "description": "Lossless TypeScript SDK for the current MAX Bot API",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evgeshaDoc/max-bot-sdk.git"
+  },
+  "homepage": "https://github.com/evgeshaDoc/max-bot-sdk#readme",
+  "bugs": "https://github.com/evgeshaDoc/max-bot-sdk/issues",
+  "author": "Tlman",
   "license": "MIT",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.18.0"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
-    "./dist/"
+    "dist/",
+    "README.md",
+    "CHANGELOG.md",
+    "UPSTREAM.md",
+    "NOTICE",
+    "LICENSE"
   ],
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./types": {
-      "types": "./dist/types.d.ts",
-      "default": "./dist/types.js"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "types": [
-        "./dist/types.d.ts"
-      ]
-    }
+    "./api": { "types": "./dist/api.d.ts", "default": "./dist/api.js" },
+    "./bot": { "types": "./dist/bot.d.ts", "default": "./dist/bot.js" },
+    "./composer": { "types": "./dist/composer.d.ts", "default": "./dist/composer.js" },
+    "./context": { "types": "./dist/context.d.ts", "default": "./dist/context.js" },
+    "./filters": { "types": "./dist/filters.d.ts", "default": "./dist/filters.js" },
+    "./middleware": { "types": "./dist/middleware.d.ts", "default": "./dist/middleware.js" },
+    "./webhook": { "types": "./dist/webhook.d.ts", "default": "./dist/webhook.js" },
+    "./attachments": { "types": "./dist/core/helpers/attachments.d.ts", "default": "./dist/core/helpers/attachments.js" },
+    "./buttons": { "types": "./dist/core/helpers/buttons.d.ts", "default": "./dist/core/helpers/buttons.js" },
+    "./keyboard": { "types": "./dist/core/helpers/keyboard.d.ts", "default": "./dist/core/helpers/keyboard.js" },
+    "./upload": { "types": "./dist/core/helpers/upload.d.ts", "default": "./dist/core/helpers/upload.js" },
+    "./client": { "types": "./dist/core/network/api/client.d.ts", "default": "./dist/core/network/api/client.js" },
+    "./errors": { "types": "./dist/core/network/api/error.d.ts", "default": "./dist/core/network/api/error.js" },
+    "./parse-update": { "types": "./dist/core/network/api/parse-update.d.ts", "default": "./dist/core/network/api/parse-update.js" },
+    "./raw-api": { "types": "./dist/core/network/api/raw-api.d.ts", "default": "./dist/core/network/api/raw-api.js" },
+    "./modules/subscriptions": { "types": "./dist/core/network/api/modules/subscriptions/types.d.ts", "default": "./dist/core/network/api/modules/subscriptions/types.js" },
+    "./api-methods": { "types": "./dist/core/network/api/modules/types.d.ts", "default": "./dist/core/network/api/modules/types.js" },
+    "./types/attachment": { "types": "./dist/core/network/api/types/attachment.d.ts", "default": "./dist/core/network/api/types/attachment.js" },
+    "./types/attachment-request": { "types": "./dist/core/network/api/types/attachment-request.d.ts", "default": "./dist/core/network/api/types/attachment-request.js" },
+    "./types/bot": { "types": "./dist/core/network/api/types/bot.d.ts", "default": "./dist/core/network/api/types/bot.js" },
+    "./types/chat": { "types": "./dist/core/network/api/types/chat.d.ts", "default": "./dist/core/network/api/types/chat.js" },
+    "./types/common": { "types": "./dist/core/network/api/types/common.d.ts", "default": "./dist/core/network/api/types/common.js" },
+    "./types/int64": { "types": "./dist/core/network/api/types/int64.d.ts", "default": "./dist/core/network/api/types/int64.js" },
+    "./types/keyboard": { "types": "./dist/core/network/api/types/keyboard.d.ts", "default": "./dist/core/network/api/types/keyboard.js" },
+    "./types/markup": { "types": "./dist/core/network/api/types/markup.d.ts", "default": "./dist/core/network/api/types/markup.js" },
+    "./types/message": { "types": "./dist/core/network/api/types/message.d.ts", "default": "./dist/core/network/api/types/message.js" },
+    "./types/update": { "types": "./dist/core/network/api/types/update.d.ts", "default": "./dist/core/network/api/types/update.js" },
+    "./types/upload": { "types": "./dist/core/network/api/types/uploads.d.ts", "default": "./dist/core/network/api/types/uploads.js" },
+    "./types/user": { "types": "./dist/core/network/api/types/user.d.ts", "default": "./dist/core/network/api/types/user.js" }
   },
   "scripts": {
-    "build": "tsc",
-    "lint": "eslint ./src --ext ts --report-unused-disable-directives"
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:examples": "npm run build --silent && tsc --noEmit --strict --skipLibCheck --module Node16 --moduleResolution Node16 --target ES2020 examples/*.ts",
+    "lint": "eslint ./src ./test --ext ts --report-unused-disable-directives && node --check test/packed-consumer.mjs && node --check test/live-webhook-gate.mjs",
+    "test:compile": "node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && node --test .test-dist/test/*.test.js",
+    "test:pack": "node test/packed-consumer.mjs",
+    "prepack": "npm run clean && npm run build"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
@@ -44,12 +77,11 @@
     "eslint-config-airbnb-base": "15.0.0",
     "eslint-config-airbnb-typescript": "^18.0.0",
     "eslint-plugin-import": "^2.25.2",
-    "mit-license": "^1.0.0",
-    "nodemon": "^3.1.7",
     "typescript": "^5.4.2"
   },
   "dependencies": {
     "debug": "^4.3.7",
+    "lossless-json": "4.3.1",
     "vcf": "^2.1.2"
   }
 }

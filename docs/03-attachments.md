@@ -1,6 +1,18 @@
 # `3` Отправка сообщений с вложениями
 Для упрощения работы с вложениями существует класс `Attachment` с функцией `toJson`, которая возвращает отформатированный объект вложения. От этого класса наследуются классы всех типов вложений.
 
+```typescript
+import {
+  AudioAttachment,
+  FileAttachment,
+  ImageAttachment,
+  LocationAttachment,
+  ShareAttachment,
+  StickerAttachment,
+  VideoAttachment,
+} from '@tlman/max-bot-sdk/attachments';
+```
+
 ## Отправка файлов
 
 ### При помощи токена

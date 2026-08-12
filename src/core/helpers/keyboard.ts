@@ -1,12 +1,11 @@
-import { InlineKeyboardAttachmentRequest } from '../network/api';
+import type { InlineKeyboardAttachmentRequest } from '../network/api/types/attachment-request';
 
-export const inlineKeyboard = (
+/** Builds a MAX inline keyboard attachment request. */
+export function inlineKeyboard(
   buttons: InlineKeyboardAttachmentRequest['payload']['buttons'],
-): InlineKeyboardAttachmentRequest => {
+): InlineKeyboardAttachmentRequest {
   return {
     type: 'inline_keyboard',
     payload: { buttons },
   };
-};
-
-export * as button from './buttons';
+}
