@@ -61,7 +61,7 @@ const fetch = async (input) => {
 import assert from 'node:assert/strict';
 import { parseUpdate } from '${packageName}/parse-update';
 import { inlineKeyboard } from '${packageName}/keyboard';
-import { callback } from '${packageName}/buttons';
+import { callback, createButton } from '${packageName}/buttons';
 import { Upload } from '${packageName}/upload';
 import '${packageName}/modules/subscriptions';
 import '${packageName}/api-methods';
@@ -78,6 +78,7 @@ await assert.rejects(
 const parsed = parseUpdate('{"update_type":"future_event","unsafe":9223372036854775808}');
 assert.deepEqual(parsed, { kind: 'unknown', updateType: 'future_event' });
 assert.equal(inlineKeyboard([[callback('OK', 'ok')]]).type, 'inline_keyboard');
+assert.equal(createButton('link', 'MAX', 'https://max.ru').type, 'link');
 assert.equal(typeof Upload, 'function');
 `;
   const esmConsumerPath = join(temporaryDirectory, 'consumer.mjs');
@@ -89,6 +90,7 @@ assert.equal(typeof Upload, 'function');
 import { Bot } from '${packageName}/bot';
 import type { ApiTransformer } from '${packageName}/client';
 import { Context } from '${packageName}/context';
+import { createButton } from '${packageName}/buttons';
 import type { FilterQuery } from '${packageName}/filter-query';
 import type { MiddlewareFn } from '${packageName}/middleware';
 import { session } from '${packageName}/session';
@@ -97,11 +99,13 @@ import { nodeHttpWebhookAdapter } from '${packageName}/webhook-adapters';
 import { serveWebhook } from '${packageName}/webhook-server';
 import type { Int64 } from '${packageName}/types/int64';
 import type { ParsedUpdate } from '${packageName}/types/update';
+import type { Button } from '${packageName}/types/keyboard';
 type AuditFlavor = { audit: { updateType: string } };
 type RequestFlavor = { requestId: string };
 type PluginContext = Context & AuditFlavor & RequestFlavor;
 type SessionContext = Context & SessionFlavor<{ count: number }>;
 const id: Int64 = '9223372036854775807';
+const button: Button = createButton('callback', 'OK', 'ok');
 const query: FilterQuery = 'message_created:text';
 const bot = new Bot('token');
 const transformer: ApiTransformer = async (next, call) => {
@@ -133,6 +137,7 @@ sessionBot.use(session({
 }));
 const parsed: ParsedUpdate = { kind: 'unknown', updateType: id };
 void bot;
+void button;
 void pluginBot;
 void sessionBot;
 void parsed;

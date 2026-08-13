@@ -53,8 +53,6 @@ export type SendContactButton = {
   payload?: string | null;
 };
 
-export type ReplyButton = SendMessageButton | SendGeoLocationButton | SendContactButton;
-
 export type ChatButton = {
   type: 'chat',
   text: string;
@@ -72,7 +70,7 @@ export type OpenAppButton = {
   payload?: string | null;
 };
 
-export type Button =
+export type InlineButton =
   | CallbackButton
   | LinkButton
   | RequestContactButton
@@ -81,3 +79,8 @@ export type Button =
   | ChatButton
   | OpenAppButton
   | ClipboardButton;
+
+export type ReplyButton = SendMessageButton | SendGeoLocationButton | SendContactButton;
+
+/** All supported MAX button shapes, discriminated by `type`. */
+export type Button = InlineButton | ReplyButton;

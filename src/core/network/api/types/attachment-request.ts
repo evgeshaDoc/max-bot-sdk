@@ -1,6 +1,6 @@
 import type { NullableObject } from '../../../helpers/types';
 
-import type { Button, ReplyButton } from './keyboard';
+import type { InlineButton, ReplyButton } from './keyboard';
 import type { Int64 } from './int64';
 
 type MediaAttachmentRequestPayload = {
@@ -52,7 +52,7 @@ export type StickerAttachmentRequest = {
 export type InlineKeyboardAttachmentRequest = {
   type: 'inline_keyboard';
   payload: {
-    buttons: Button[][]
+    buttons: InlineButton[][]
   }
 };
 

@@ -1,6 +1,6 @@
 import type { NullableObject } from '../../../helpers/types';
 
-import type { Button, ReplyButton } from './keyboard';
+import type { InlineButton, ReplyButton } from './keyboard';
 import type { User } from './user';
 import type { Int64 } from './int64';
 
@@ -73,7 +73,7 @@ export type LocationAttachment = {
 export type InlineKeyboardAttachment = {
   type: 'inline_keyboard';
   payload: {
-    buttons: Button[][]
+    buttons: InlineButton[][]
   }
 };
 

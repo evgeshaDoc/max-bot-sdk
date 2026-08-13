@@ -8,7 +8,7 @@ import type {
   VideoAttachmentRequest,
 } from '../network/api/types/attachment-request';
 
-class Attachment {
+abstract class Attachment {
   toJson() {
     throw new Error('Attachment not implemented.');
   }

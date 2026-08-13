@@ -16,6 +16,22 @@ const keyboard = inlineKeyboard([
   [button.link('Открыть Max', 'https://max.ru')],
 ]);
 ```
+
+Все кнопки также создаются одной перегруженной функцией. Поле `type`
+определяет допустимые параметры и точный тип результата:
+
+```typescript
+import { createButton } from '@tlman/max-bot-sdk/buttons';
+import type { Button } from '@tlman/max-bot-sdk/types/keyboard';
+
+const button: Button = createButton(
+  'callback',
+  'Подтвердить',
+  'confirm',
+  { intent: 'positive' },
+);
+```
+
 ### Типы кнопок
 
 #### Callback
