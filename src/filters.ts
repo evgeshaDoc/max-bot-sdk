@@ -1,6 +1,7 @@
 import type {
   Message, MessageBody,
 } from './core/network/api/types/message';
+import type { Attachment } from './core/network/api/types/attachment';
 import type {
   MessageCreatedUpdate, Update,
 } from './core/network/api/types/update';
@@ -28,4 +29,18 @@ export function createdMessageBodyHas<Keys extends Array<keyof MessageBody>>(
   }
 
   return messageBodyHas;
+}
+
+/** Finds the first attachment with the requested discriminant. */
+export function findAttachment<AttachmentType extends Attachment['type']>(
+  message: Message | null | undefined,
+  type: AttachmentType,
+): Extract<Attachment, { type: AttachmentType }> | undefined {
+  function matchesAttachmentType(
+    attachment: Attachment,
+  ): attachment is Extract<Attachment, { type: AttachmentType }> {
+    return attachment.type === type;
+  }
+
+  return message?.body?.attachments?.find(matchesAttachmentType);
 }

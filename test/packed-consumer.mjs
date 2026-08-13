@@ -6,6 +6,14 @@ import { spawnSync } from 'node:child_process';
 
 const packageName = '@tlman/max-bot-sdk';
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'max-sdk-consumer-'));
+const subpaths = [
+  'api', 'bot', 'composer', 'context', 'filter-query', 'filters', 'middleware', 'session',
+  'webhook', 'webhook-adapters', 'webhook-server',
+  'attachments', 'buttons', 'keyboard', 'upload', 'client', 'errors', 'parse-update',
+  'raw-api', 'modules/subscriptions', 'api-methods', 'types/attachment',
+  'types/attachment-request', 'types/bot', 'types/chat', 'types/common', 'types/int64',
+  'types/keyboard', 'types/markup', 'types/message', 'types/update', 'types/upload', 'types/user',
+];
 
 try {
   const packed = run('npm', ['pack', '--json', '--silent', '--pack-destination', temporaryDirectory]);
@@ -25,13 +33,7 @@ const { Bot } = require('${packageName}/bot');
 const { Context } = require('${packageName}/context');
 const { parseUpdate } = require('${packageName}/parse-update');
 assert.throws(() => require('${packageName}'));
-for (const subpath of [
-  'api', 'bot', 'composer', 'context', 'filters', 'middleware', 'webhook',
-  'attachments', 'buttons', 'keyboard', 'upload', 'client', 'errors', 'parse-update',
-  'raw-api', 'modules/subscriptions', 'api-methods', 'types/attachment',
-  'types/attachment-request', 'types/bot', 'types/chat', 'types/common', 'types/int64',
-  'types/keyboard', 'types/markup', 'types/message', 'types/update', 'types/upload', 'types/user',
-]) require('${packageName}/' + subpath);
+for (const subpath of ${JSON.stringify(subpaths)}) require('${packageName}/' + subpath);
 class CustomContext extends Context {}
 let requests = 0;
 const fetch = async (input) => {
@@ -63,6 +65,16 @@ import { callback } from '${packageName}/buttons';
 import { Upload } from '${packageName}/upload';
 import '${packageName}/modules/subscriptions';
 import '${packageName}/api-methods';
+for (const subpath of ${JSON.stringify(subpaths)}) {
+  await import('${packageName}/' + subpath);
+}
+await assert.rejects(
+  import('${packageName}'),
+  (error) => (
+    error?.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+    || String(error).includes("Cannot find module '${packageName}'")
+  ),
+);
 const parsed = parseUpdate('{"update_type":"future_event","unsafe":9223372036854775808}');
 assert.deepEqual(parsed, { kind: 'unknown', updateType: 'future_event' });
 assert.equal(inlineKeyboard([[callback('OK', 'ok')]]).type, 'inline_keyboard');
@@ -75,13 +87,58 @@ assert.equal(typeof Upload, 'function');
 
   const typeConsumer = `
 import { Bot } from '${packageName}/bot';
+import type { ApiTransformer } from '${packageName}/client';
+import { Context } from '${packageName}/context';
+import type { FilterQuery } from '${packageName}/filter-query';
+import type { MiddlewareFn } from '${packageName}/middleware';
+import { session } from '${packageName}/session';
+import type { SessionFlavor, StorageAdapter } from '${packageName}/session';
+import { nodeHttpWebhookAdapter } from '${packageName}/webhook-adapters';
+import { serveWebhook } from '${packageName}/webhook-server';
 import type { Int64 } from '${packageName}/types/int64';
 import type { ParsedUpdate } from '${packageName}/types/update';
+type AuditFlavor = { audit: { updateType: string } };
+type RequestFlavor = { requestId: string };
+type PluginContext = Context & AuditFlavor & RequestFlavor;
+type SessionContext = Context & SessionFlavor<{ count: number }>;
 const id: Int64 = '9223372036854775807';
+const query: FilterQuery = 'message_created:text';
 const bot = new Bot('token');
+const transformer: ApiTransformer = async (next, call) => {
+  call.method;
+  call.route;
+  await next({ timeoutMs: 1000 });
+};
+bot.api.use(transformer);
+const pluginBot = new Bot<PluginContext>('token');
+const plugin: MiddlewareFn<PluginContext> = async (context, next) => {
+  context.audit = { updateType: context.updateType };
+  context.requestId = context.update.timestamp;
+  await next();
+};
+pluginBot.use(plugin);
+pluginBot.on('message_created:text', (context) => (
+  context.audit.updateType + context.requestId + context.message.body.text
+));
+const storage: StorageAdapter<{ count: number }> = {
+  read: () => undefined,
+  write: () => undefined,
+  delete: () => undefined,
+};
+const sessionBot = new Bot<SessionContext>('token');
+sessionBot.use(session({
+  storage,
+  initial: () => ({ count: 0 }),
+  getSessionKey: (context) => context.update.timestamp,
+}));
 const parsed: ParsedUpdate = { kind: 'unknown', updateType: id };
 void bot;
+void pluginBot;
+void sessionBot;
 void parsed;
+void query;
+void nodeHttpWebhookAdapter;
+void serveWebhook;
 `;
   const typeConsumerPath = join(temporaryDirectory, 'consumer.ts');
   writeFileSync(typeConsumerPath, typeConsumer);

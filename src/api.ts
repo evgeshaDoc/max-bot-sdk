@@ -12,7 +12,7 @@ import type {
   UploadImageOptions,
   UploadVideoOptions,
 } from './core/helpers/upload';
-import type { Client } from './core/network/api/client';
+import type { ApiTransformer, Client } from './core/network/api/client';
 import { MaxError, MaxErrorKind } from './core/network/api/error';
 import type { BotCommand } from './core/network/api/types/bot';
 import type { ChatAdmin, SenderAction } from './core/network/api/types/chat';
@@ -75,13 +75,22 @@ function validateSubscriptionInput(input: CreateSubscriptionInput): void {
 
 /** Friendly API for all current MAX Bot API methods. */
 export class Api {
+  private readonly client: Client;
+
   readonly raw: RawApi;
 
   readonly upload: Upload;
 
   constructor(client: Client) {
+    this.client = client;
     this.raw = new RawApi(client);
     this.upload = new Upload(this);
+  }
+
+  /** Adds global transformers for future API calls. */
+  use(...transformers: ApiTransformer[]): this {
+    this.client.use(...transformers);
+    return this;
   }
 
   /** Returns the bot profile associated with the configured token. */

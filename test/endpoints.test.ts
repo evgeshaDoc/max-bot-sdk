@@ -268,6 +268,7 @@ test('the injected-fetch table covers exactly 28 current methods', async (contex
   for (const endpoint of cases) {
     await context.test(endpoint.name, async () => {
       let calls = 0;
+      let transformerCalls = 0;
       const fetchMock: typeof fetch = async (input, init) => {
         calls += 1;
         const url = new URL(String(input));
@@ -280,12 +281,18 @@ test('the injected-fetch table covers exactly 28 current methods', async (contex
           headers: { 'content-type': 'application/json' },
         });
       };
-      const api = new RawApi(createClient('secret-token', {
+      const client = createClient('secret-token', {
         baseUrl: 'https://api.test', fetch: fetchMock,
-      }));
+      });
+      client.use(async (next) => {
+        transformerCalls += 1;
+        await next();
+      });
+      const api = new RawApi(client);
       const result = await endpoint.invoke(api);
       assertJsonNative(result);
       assert.equal(calls, 1);
+      assert.equal(transformerCalls, 1);
     });
   }
 });

@@ -8,7 +8,7 @@ import type { SenderAction } from './core/network/api/types/chat';
 import type { Int64 } from './core/network/api/types/int64';
 import type { Message } from './core/network/api/types/message';
 import type {
-  BotStartedUpdate, FilteredUpdate, MessageCallbackUpdate, Update, UpdateType,
+  BotStartedUpdate, MessageCallbackUpdate, Update,
 } from './core/network/api/types/update';
 import type { User } from './core/network/api/types/user';
 
@@ -18,21 +18,23 @@ import {
   GetChatMembersExtra,
   PinMessageExtra,
 } from './core/network/api/modules/chats/types';
+import { compileFilterQuery } from './filter-query';
+import type { FilteredUpdateFor, FilterQuery } from './filter-query-types';
 
 export type FilteredContext<
   ContextType extends Context,
-  Filter extends UpdateType | Guard<ContextType['update']>,
-> = Filter extends UpdateType
-  ? ContextType & Context<FilteredUpdate<Filter>>
+  Filter extends FilterQuery | Guard<ContextType['update']>,
+> = Filter extends FilterQuery
+  ? ContextType & Context<FilteredUpdateFor<ContextType['update'], Filter>>
   : Filter extends Guard<ContextType['update'], infer GuardedUpdate>
     ? ContextType & Context<GuardedUpdate>
     : never;
 
 type GetMessage<UpdateValue extends Update> =
   | UpdateValue extends MessageCallbackUpdate
-    ? MessageCallbackUpdate['message']
+    ? UpdateValue['message']
     : UpdateValue extends { message: Message }
-      ? Message
+      ? UpdateValue['message']
       : undefined;
 
 type GetChatId<UpdateValue extends Update> =
@@ -55,7 +57,7 @@ type GetMsgId<UpdateValue extends Update> =
 
 type GetCallback<UpdateValue extends Update> =
     | UpdateValue extends MessageCallbackUpdate
-      ? MessageCallbackUpdate['callback']
+      ? UpdateValue['callback']
       : undefined;
 
 type GetUser<UpdateValue extends Update> =
@@ -69,7 +71,7 @@ type GetUser<UpdateValue extends Update> =
 
 type GetStartPayload<UpdateValue extends Update> =
     | UpdateValue extends BotStartedUpdate
-      ? string | undefined | null
+      ? UpdateValue['payload']
       : undefined;
 
 type ContactInfo = {
@@ -98,15 +100,12 @@ export class Context<UpdateValue extends Update = Update> {
     readonly botInfo?: BotInfo,
   ) {}
 
-  has<ContextType extends Context, Filter extends UpdateType | Guard<ContextType['update']>>(
+  has<ContextType extends Context, Filter extends FilterQuery | Guard<ContextType['update']>>(
     this: ContextType,
     filters: MaybeArray<Filter>,
   ): this is FilteredContext<ContextType, Filter> {
     for (const filter of Array.isArray(filters) ? filters : [filters]) {
-      if (typeof filter === 'function'
-        ? filter(this.update)
-        : filter === this.update.update_type
-      ) {
+      if (typeof filter === 'function' ? filter(this.update) : compileFilterQuery(filter)(this.update)) {
         return true;
       }
     }

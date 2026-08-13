@@ -141,28 +141,52 @@ test('webhook handler is directly usable as a Web Fetch transport', async () => 
   const bot = new Bot('token', { clientOptions: { fetch: fetchMock } });
   await bot.initialize();
   let handled = 0;
-  bot.use(() => {
+  let seenTimestamp: Int64 | undefined;
+  bot.use((context) => {
     handled += 1;
+    seenTimestamp = context.update.timestamp;
+    if (context.update.update_type === 'message_removed'
+      && context.update.message_id === 'explode') {
+      throw new Error('escaped webhook middleware error');
+    }
   });
   assert.throws(() => createWebhookHandler(bot, { secret: 'bad!' }));
   const handler = createWebhookHandler(bot, { secret: 'valid_secret' });
-  const body = '{"update_type":"message_removed","timestamp":1,"message_id":"m",'
-    + '"chat_id":2,"user_id":3}';
+  const body = '{"update_type":"message_removed","timestamp":116328147937082782,'
+    + '"message_id":"m","chat_id":116328147937082783,"user_id":116328147937082784}';
 
-  assert.equal((await handler(new Request('https://bot.test', { method: 'GET' }))).status, 405);
-  assert.equal((await handler(new Request('https://bot.test', {
+  const methodResponse = await handler(new Request('https://bot.test', { method: 'GET' }));
+  assert.equal(methodResponse.status, 405);
+  assert.equal(methodResponse.headers.get('allow'), 'POST');
+
+  let unauthorizedBodyReads = 0;
+  const unauthorized = new Request('https://bot.test', {
     method: 'POST', body, headers: { 'x-max-bot-api-secret': 'wrong' },
-  }))).status, 401);
+  });
+  Object.defineProperty(unauthorized, 'arrayBuffer', {
+    value: async () => {
+      unauthorizedBodyReads += 1;
+      throw new Error('unauthorized body must not be read');
+    },
+  });
+  assert.equal((await handler(unauthorized)).status, 401);
+  assert.equal(unauthorizedBodyReads, 0);
   assert.equal((await handler(new Request('https://bot.test', {
     method: 'POST', body: '{', headers: { 'x-max-bot-api-secret': 'valid_secret' },
   }))).status, 400);
   assert.equal((await handler(new Request('https://bot.test', {
     method: 'POST', body, headers: { 'x-max-bot-api-secret': 'valid_secret' },
   }))).status, 200);
+  assert.equal(seenTimestamp, '116328147937082782');
   assert.equal((await handler(new Request('https://bot.test', {
     method: 'POST',
     body: '{"update_type":"future_event","unsafe":9223372036854775808}',
     headers: { 'x-max-bot-api-secret': 'valid_secret' },
   }))).status, 200);
-  assert.equal(handled, 1);
+  assert.equal((await handler(new Request('https://bot.test', {
+    method: 'POST',
+    body: body.replace('"message_id":"m"', '"message_id":"explode"'),
+    headers: { 'x-max-bot-api-secret': 'valid_secret' },
+  }))).status, 500);
+  assert.equal(handled, 2);
 });

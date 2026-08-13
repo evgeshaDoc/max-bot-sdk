@@ -7,12 +7,47 @@ import {
   validateWireValue,
 } from './wire-descriptors';
 import { getWireContract } from './wire-contracts';
+import type {
+  ApiCallMetadata,
+  ApiCallNext,
+  ApiTransformer,
+  ClientResponse,
+  HttpMethod,
+  QueryValue,
+  TransformableRequestOptions,
+} from './transformer-types';
+
+export type {
+  ApiCallMetadata,
+  ApiCallNext,
+  ApiTransformer,
+  ClientResponse,
+  HttpMethod,
+  QueryValue,
+  TransformableRequestOptions,
+} from './transformer-types';
 
 const DEFAULT_BASE_URL = 'https://platform-api2.max.ru';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-export type QueryValue = string | number | boolean | null | undefined;
+interface TrustedCallSpecification {
+  readonly method: HttpMethod;
+  readonly route: string;
+  readonly requestDescriptor?: WireDescriptor;
+  readonly responseDescriptor?: WireDescriptor;
+  readonly parseResponse?: (text: string) => unknown;
+  readonly contract: ReturnType<typeof getWireContract>;
+}
+
+interface TrustedTerminalInput {
+  readonly token: string;
+  readonly fetchImplementation: typeof globalThis.fetch;
+  readonly baseUrl: string;
+  readonly defaultTimeoutMs: number;
+  readonly clientSignal?: AbortSignal;
+  readonly specification: TrustedCallSpecification;
+  readonly request: Readonly<TransformableRequestOptions>;
+}
 
 /** Configures the single HTTP transport used by the SDK. */
 export interface ClientOptions {
@@ -40,12 +75,6 @@ export interface ClientCallOptions {
   readonly options: RequestOptions;
 }
 
-export interface ClientResponse {
-  readonly status: number;
-  readonly data: unknown;
-  readonly headers: Headers;
-}
-
 export interface RawRequestOptions {
   readonly url: string;
   readonly init: RequestInit;
@@ -56,6 +85,8 @@ export interface RawRequestOptions {
 export interface Client {
   readonly call: (options: ClientCallOptions) => Promise<ClientResponse>;
   readonly request: (options: RawRequestOptions) => Promise<Response>;
+  /** Adds global transformers for future API calls. */
+  use(...transformers: ApiTransformer[]): this;
 }
 
 /** Creates the SDK's single injected-fetch MAX transport. */
@@ -63,104 +94,35 @@ export function createClient(token: string, options: ClientOptions = {}): Client
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const transformers: ApiTransformer[] = [];
   validateBaseUrl(baseUrl);
   validateTimeout(timeoutMs);
 
   async function call(callOptions: ClientCallOptions): Promise<ClientResponse> {
     const method = callOptions.options.method ?? 'GET';
-    const errorPath = callOptions.path;
-    const contract = getWireContract(method, callOptions.path);
-    const requestTimeout = callOptions.options.timeoutMs ?? timeoutMs;
-    let path: string;
-    try {
-      validateTimeout(requestTimeout);
-      validateWireValue(callOptions.options.path, contract.path);
-      validateWireValue(callOptions.options.query, contract.query);
-      validateWireValue(callOptions.options.body, contract.body);
-      path = buildPath(callOptions.path, callOptions.options.path);
-    } catch (error) {
-      throw withRequestDetails(error, method, errorPath, false);
-    }
-    if (!token) {
-      throw new MaxError('MAX access token is required', {
-        kind: MaxErrorKind.Protocol,
+    const terminalInput: TrustedTerminalInput = {
+      token,
+      fetchImplementation,
+      baseUrl,
+      defaultTimeoutMs: timeoutMs,
+      clientSignal: options.signal,
+      specification: {
         method,
-        path: errorPath,
-      });
-    }
-
-    const url = new URL(path, ensureTrailingSlash(baseUrl));
-    appendQuery(url, callOptions.options.query);
-    const controller = new AbortController();
-    if (options.signal?.aborted || callOptions.options.signal?.aborted) {
-      throw new MaxError('MAX request aborted', {
-        kind: MaxErrorKind.Abort,
-        method,
-        path: errorPath,
-        ambiguousOutcome: false,
-      });
-    }
-    const body = serializeBody(
-      callOptions.options.body,
-      callOptions.options.requestDescriptor ?? contract.body,
-      method,
-      errorPath,
-    );
-    const timeout = setTimeout(controller.abort.bind(controller), requestTimeout);
-    const combined = combineSignals([
-      controller.signal,
-      options.signal,
-      callOptions.options.signal,
-    ]);
-    let responseReceived = false;
-    let responseStatus: number | undefined;
-    let requestStarted = false;
-
-    try {
-      requestStarted = true;
-      const response = await fetchImplementation(url, {
-        method,
-        headers: buildHeaders(token, callOptions.options.body),
-        body,
-        redirect: 'error',
-        signal: combined.signal,
-      });
-      responseReceived = true;
-      responseStatus = response.status;
-      const text = await response.text();
-      const data = response.ok
-        ? parseSuccessfulResponse(text, callOptions.options, contract.response)
-        : parseErrorBody(text);
-      if (response.ok) contract.validateResponse?.(data);
-      return { status: response.status, data, headers: response.headers };
-    } catch (error) {
-      if (error instanceof MaxError) {
-        const ambiguous = error.ambiguousOutcome
-          || (responseReceived && isMutation(method) && error.kind === MaxErrorKind.Protocol);
-        throw withRequestDetails(error, method, errorPath, ambiguous);
-      }
-      const callerAborted = options.signal?.aborted || callOptions.options.signal?.aborted;
-      if (responseStatus !== undefined && responseStatus >= 400) {
-        throw new MaxError('MAX response body could not be read', {
-          kind: MaxErrorKind.Http,
-          status: responseStatus,
-          method,
-          path: errorPath,
-          ambiguousOutcome: isMutation(method) && responseStatus >= 500,
-          cause: error,
-        });
-      }
-      throw new MaxError(callerAborted ? 'MAX request aborted' : 'MAX request failed', {
-        kind: classifyFailure(callerAborted, controller.signal.aborted, responseReceived),
-        method,
-        path: errorPath,
-        ambiguousOutcome: isMutation(method) && requestStarted,
-        cause: error,
-      });
-    } finally {
-      clearTimeout(timeout);
-      combined.cleanup();
-    }
+        route: callOptions.path,
+        requestDescriptor: callOptions.options.requestDescriptor,
+        responseDescriptor: callOptions.options.responseDescriptor,
+        parseResponse: callOptions.options.parseResponse,
+        contract: getWireContract(method, callOptions.path),
+      },
+      request: {
+        path: callOptions.options.path,
+        query: callOptions.options.query,
+        body: callOptions.options.body,
+        signal: callOptions.options.signal,
+        timeoutMs: callOptions.options.timeoutMs,
+      },
+    };
+    return executeTransformerChain(terminalInput, transformers.slice());
   }
 
   async function request(requestOptions: RawRequestOptions): Promise<Response> {
@@ -230,7 +192,270 @@ export function createClient(token: string, options: ClientOptions = {}): Client
     }
   }
 
-  return { call, request };
+  const client: Client = {
+    call,
+    request,
+    use(...registeredTransformers) {
+      transformers.push(...registeredTransformers);
+      return client;
+    },
+  };
+  return client;
+}
+
+async function executeTransformerChain(
+  terminalInput: TrustedTerminalInput,
+  transformers: readonly ApiTransformer[],
+): Promise<ClientResponse> {
+  let terminalStarted = false;
+  let mutationMayHaveApplied = false;
+
+  async function dispatch(
+    index: number,
+    request: Readonly<TransformableRequestOptions>,
+  ): Promise<ClientResponse> {
+    if (index === transformers.length) {
+      if (terminalStarted) {
+        throw transformerProtocolError(
+          terminalInput.specification,
+          'MAX API transformer invoked the transport more than once',
+        );
+      }
+      terminalStarted = true;
+      try {
+        const response = await executeTrustedCall({ ...terminalInput, request });
+        mutationMayHaveApplied = isMutation(terminalInput.specification.method)
+          && (response.status < 400 || response.status >= 500);
+        return response;
+      } catch (error) {
+        if (error instanceof MaxError && error.ambiguousOutcome) {
+          mutationMayHaveApplied = true;
+        }
+        throw error;
+      }
+    }
+
+    const transformer = transformers[index];
+    let frameOpen = true;
+    let nextPromise: Promise<ClientResponse> | undefined;
+    let nextError: unknown;
+    let nextFailed = false;
+    let duplicateCalled = false;
+    let duplicateError: MaxError | undefined;
+    let transformerFailed = false;
+    let transformerError: unknown;
+    const metadata: ApiCallMetadata = Object.freeze({
+      method: terminalInput.specification.method,
+      route: terminalInput.specification.route,
+      request: Object.freeze({ ...request }),
+    });
+
+    const next: ApiCallNext = function callNext(replacement) {
+      if (!frameOpen || nextPromise !== undefined) {
+        duplicateCalled = true;
+        const rejection = (async function rejectDuplicateNext(): Promise<never> {
+          if (nextPromise) {
+            try {
+              await nextPromise;
+            } catch {
+              // The trusted terminal records whether the mutation may have applied.
+            }
+          }
+          duplicateError = transformerProtocolError(
+            terminalInput.specification,
+            'MAX API transformer called next more than once',
+            mutationMayHaveApplied,
+          );
+          throw duplicateError;
+        }());
+        rejection.catch(() => undefined);
+        return rejection;
+      }
+      nextPromise = dispatch(index + 1, mergeTransformableRequest(request, replacement))
+        .catch((error: unknown) => {
+          nextFailed = true;
+          nextError = error;
+          throw error;
+        });
+      nextPromise.catch(() => undefined);
+      return nextPromise;
+    };
+
+    try {
+      await transformer(next, metadata);
+    } catch (error) {
+      transformerFailed = true;
+      transformerError = error;
+    } finally {
+      frameOpen = false;
+    }
+    if (duplicateCalled) {
+      if (nextPromise) {
+        try {
+          await nextPromise;
+        } catch {
+          // The downstream outcome is reflected by mutationMayHaveApplied.
+        }
+      }
+      if (transformerFailed
+        && transformerError !== duplicateError
+        && (!nextFailed || transformerError !== nextError)) {
+        throw transformerError;
+      }
+      throw transformerProtocolError(
+        terminalInput.specification,
+        'MAX API transformer called next more than once',
+        mutationMayHaveApplied,
+      );
+    }
+    if (transformerFailed) {
+      if (nextPromise) {
+        try {
+          await nextPromise;
+        } catch {
+          // The transformer error remains the primary failure.
+        }
+      }
+      throw transformerError;
+    }
+    if (!nextPromise) {
+      throw transformerProtocolError(
+        terminalInput.specification,
+        'MAX API transformer must call next exactly once',
+      );
+    }
+    return nextPromise;
+  }
+
+  return dispatch(0, terminalInput.request);
+}
+
+function mergeTransformableRequest(
+  current: Readonly<TransformableRequestOptions>,
+  replacement?: Readonly<Partial<TransformableRequestOptions>>,
+): Readonly<TransformableRequestOptions> {
+  if (replacement === undefined) return current;
+  return {
+    path: hasOwnProperty(replacement, 'path') ? replacement.path : current.path,
+    query: hasOwnProperty(replacement, 'query') ? replacement.query : current.query,
+    body: hasOwnProperty(replacement, 'body') ? replacement.body : current.body,
+    signal: hasOwnProperty(replacement, 'signal') ? replacement.signal : current.signal,
+    timeoutMs: hasOwnProperty(replacement, 'timeoutMs')
+      ? replacement.timeoutMs
+      : current.timeoutMs,
+  };
+}
+
+function hasOwnProperty(value: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function transformerProtocolError(
+  specification: TrustedCallSpecification,
+  message: string,
+  ambiguousOutcome = false,
+): MaxError {
+  return new MaxError(message, {
+    kind: MaxErrorKind.Protocol,
+    method: specification.method,
+    path: specification.route,
+    ambiguousOutcome,
+  });
+}
+
+async function executeTrustedCall(input: TrustedTerminalInput): Promise<ClientResponse> {
+  const { method, route, contract } = input.specification;
+  const requestTimeout = input.request.timeoutMs ?? input.defaultTimeoutMs;
+  let path: string;
+  try {
+    validateTimeout(requestTimeout);
+    validateWireValue(input.request.path, contract.path);
+    validateWireValue(input.request.query, contract.query);
+    validateWireValue(input.request.body, contract.body);
+    path = buildPath(route, input.request.path);
+  } catch (error) {
+    throw withRequestDetails(error, method, route, false);
+  }
+  if (!input.token) {
+    throw new MaxError('MAX access token is required', {
+      kind: MaxErrorKind.Protocol,
+      method,
+      path: route,
+    });
+  }
+
+  const url = new URL(path, ensureTrailingSlash(input.baseUrl));
+  appendQuery(url, input.request.query);
+  const controller = new AbortController();
+  if (input.clientSignal?.aborted || input.request.signal?.aborted) {
+    throw new MaxError('MAX request aborted', {
+      kind: MaxErrorKind.Abort,
+      method,
+      path: route,
+      ambiguousOutcome: false,
+    });
+  }
+  const body = serializeBody(
+    input.request.body,
+    input.specification.requestDescriptor ?? contract.body,
+    method,
+    route,
+  );
+  const timeout = setTimeout(controller.abort.bind(controller), requestTimeout);
+  const combined = combineSignals([
+    controller.signal,
+    input.clientSignal,
+    input.request.signal,
+  ]);
+  let responseReceived = false;
+  let responseStatus: number | undefined;
+  let requestStarted = false;
+
+  try {
+    requestStarted = true;
+    const response = await input.fetchImplementation(url, {
+      method,
+      headers: buildHeaders(input.token, input.request.body),
+      body,
+      redirect: 'error',
+      signal: combined.signal,
+    });
+    responseReceived = true;
+    responseStatus = response.status;
+    const text = await response.text();
+    const data = response.ok
+      ? parseSuccessfulResponse(text, input.specification, contract.response)
+      : parseErrorBody(text);
+    if (response.ok) contract.validateResponse?.(data);
+    return { status: response.status, data, headers: response.headers };
+  } catch (error) {
+    if (error instanceof MaxError) {
+      const ambiguous = error.ambiguousOutcome
+        || (responseReceived && isMutation(method) && error.kind === MaxErrorKind.Protocol);
+      throw withRequestDetails(error, method, route, ambiguous);
+    }
+    const callerAborted = input.clientSignal?.aborted || input.request.signal?.aborted;
+    if (responseStatus !== undefined && responseStatus >= 400) {
+      throw new MaxError('MAX response body could not be read', {
+        kind: MaxErrorKind.Http,
+        status: responseStatus,
+        method,
+        path: route,
+        ambiguousOutcome: isMutation(method) && responseStatus >= 500,
+        cause: error,
+      });
+    }
+    throw new MaxError(callerAborted ? 'MAX request aborted' : 'MAX request failed', {
+      kind: classifyFailure(callerAborted, controller.signal.aborted, responseReceived),
+      method,
+      path: route,
+      ambiguousOutcome: isMutation(method) && requestStarted,
+      cause: error,
+    });
+  } finally {
+    clearTimeout(timeout);
+    combined.cleanup();
+  }
 }
 
 function validateBaseUrl(value: string): void {
@@ -323,7 +548,7 @@ function serializeBody(
 
 function parseSuccessfulResponse(
   text: string,
-  options: RequestOptions,
+  options: TrustedCallSpecification,
   contractDescriptor?: WireDescriptor,
 ): unknown {
   return options.parseResponse

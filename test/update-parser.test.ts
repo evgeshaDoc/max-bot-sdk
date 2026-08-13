@@ -52,6 +52,40 @@ test('unknown updates discard payload before unsafe-number normalization', () =>
   );
 });
 
+test('callback and bot-start payload types are identical for webhook and polling input', async () => {
+  const callbackFixture = await readFile(`${fixtureDirectory}/message_callback.json`, 'utf8');
+  const botStartedFixture = await readFile(`${fixtureDirectory}/bot_started.json`, 'utf8');
+  const accepted = [
+    callbackFixture.replace(',"payload":"ok"', ''),
+    callbackFixture.replace('"payload":"ok"', '"payload":""'),
+    callbackFixture,
+    botStartedFixture.replace(',"payload":"start"', ''),
+    botStartedFixture.replace('"payload":"start"', '"payload":null'),
+    botStartedFixture.replace('"payload":"start"', '"payload":""'),
+    botStartedFixture,
+  ];
+  const rejected = [
+    ...['null', '0', 'false', '{}', '[]'].map((payload) => {
+      return callbackFixture.replace('"payload":"ok"', `"payload":${payload}`);
+    }),
+    ...['0', 'false', '{}', '[]'].map((payload) => {
+      return botStartedFixture.replace('"payload":"start"', `"payload":${payload}`);
+    }),
+  ];
+
+  for (const raw of accepted) {
+    assert.equal(parseUpdate(raw).kind, 'known');
+    assert.equal(parseUpdatesResponse(`{"updates":[${raw}],"marker":null}`).updates[0].kind, 'known');
+  }
+  for (const raw of rejected) {
+    assert.throws(() => parseUpdate(raw), MaxUpdateParseError);
+    assert.throws(
+      () => parseUpdatesResponse(`{"updates":[${raw}],"marker":null}`),
+      MaxUpdateParseError,
+    );
+  }
+});
+
 test('known int64 paths accept only bare canonical signed int64 numbers', () => {
   const valid = parseUpdate(
     '{"update_type":"message_removed","timestamp":-9223372036854775808,'

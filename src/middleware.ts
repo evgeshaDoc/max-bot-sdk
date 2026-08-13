@@ -1,8 +1,12 @@
 import type { Context } from './context';
-
-type MaybePromise<Value> = Value | Promise<Value>;
+import type { MaybePromise } from './core/helpers/types';
 
 export type NextFn = () => Promise<void>;
+
+/** A synchronous or asynchronous predicate over a middleware context. */
+export type ContextPredicate<ContextType extends Context> = (
+  context: ContextType,
+) => MaybePromise<boolean>;
 
 export type MiddlewareFn<ContextType extends Context> = (
   context: ContextType,
@@ -17,3 +21,10 @@ export interface MiddlewareObj<ContextType extends Context> {
 
 export type Middleware<ContextType extends Context> =
   MiddlewareFn<ContextType> | MiddlewareObj<ContextType>;
+
+/** Handles an error thrown inside a local Composer boundary. */
+export type MiddlewareErrorHandler<ContextType extends Context> = (
+  error: unknown,
+  context: ContextType,
+  next: NextFn,
+) => MaybePromise<void>;

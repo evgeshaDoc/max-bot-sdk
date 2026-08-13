@@ -26,7 +26,7 @@ Bun.serve({
 });
 ```
 
-Webhook body должен попасть в SDK как исходные bytes: не ставьте JSON body parser перед `createWebhookHandler` или `parseUpdate`. Handler принимает стандартный `Request`, поэтому тот же контракт можно подключить к любому Node.js-серверу с Web Fetch adapter.
+Webhook body должен попасть в SDK как исходные bytes: не ставьте JSON body parser перед `createWebhookHandler` или `parseUpdate`. Для Node HTTP, Express 5 и Fastify 5 используйте raw-body adapters; для SDK-owned local listener — `serveWebhook`. Конкретные настройки и reverse-proxy boundary описаны в [docs/02-listen-and-respond.md](docs/02-listen-and-respond.md).
 
 Создание subscription:
 
@@ -50,6 +50,18 @@ bot.on('message_created', (context) => context.reply('Получено'));
 await bot.start();
 ```
 
+## Sessions
+
+```ts
+import { session } from '@tlman/max-bot-sdk/session';
+import type { SessionFlavor } from '@tlman/max-bot-sdk/session';
+```
+
+Session middleware требует явные `storage`, `initial` и `getSessionKey`. Один instance
+сериализует одинаковые ключи только внутри одного Node.js/Bun процесса; распределённую
+координацию и изоляцию возвращаемых объектов обеспечивает storage adapter. Подробный
+контракт и взаимодействие с `errorBoundary` описаны в [docs/plugins.md](docs/plugins.md).
+
 ## Lossless IDs
 
 Все документированные MAX `int64` представлены как canonical decimal strings:
@@ -65,7 +77,7 @@ SDK сериализует такие значения обратно в JSON к
 
 ## Public modules
 
-Основные runtime imports: `/bot`, `/api`, `/context`, `/composer`, `/middleware`, `/filters`, `/webhook`, `/client`, `/raw-api`, `/parse-update`, `/errors`, `/attachments`, `/keyboard`, `/buttons`. Типы доступны через точечные `/types/*` exports из `package.json`.
+Основные runtime imports: `/bot`, `/api`, `/context`, `/composer`, `/middleware`, `/filter-query`, `/filters`, `/session`, `/webhook`, `/webhook-adapters`, `/webhook-server`, `/client`, `/raw-api`, `/parse-update`, `/errors`, `/attachments`, `/keyboard`, `/buttons`. Типы доступны через точечные `/types/*` exports из `package.json`.
 
 Полный аудит MAX API находится в [docs/api-coverage.md](docs/api-coverage.md), происхождение форка — в [UPSTREAM.md](UPSTREAM.md), политика обновления — в [CHANGELOG.md](CHANGELOG.md).
 

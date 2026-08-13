@@ -61,6 +61,7 @@ function normalizeMessage(value: unknown): UnknownRecord {
 
 function normalizeCallback(value: unknown): UnknownRecord {
   const callback = expectRecord(value);
+  if (callback.payload !== undefined) expectString(callback.payload);
   return {
     ...callback,
     timestamp: expectInt64(callback.timestamp),
@@ -125,6 +126,8 @@ function normalizeKnownUpdate(root: UnknownRecord, updateType: UpdateType): Unkn
         title: expectString(root.title),
       };
     case 'bot_started':
+      if (root.payload !== undefined && root.payload !== null) expectString(root.payload);
+      return normalizeUserUpdate(update, root);
     case 'bot_stopped':
     case 'dialog_cleared':
     case 'dialog_unmuted':

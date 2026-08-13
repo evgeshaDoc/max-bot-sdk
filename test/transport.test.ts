@@ -10,6 +10,47 @@ import { RawApi } from '../src/core/network/api/raw-api';
 
 type Mode = 'bot' | 'empty' | 'invalid' | 'error400' | 'error500' | 'redirect' | 'slow';
 
+test('public Client.call preserves custom wire descriptors, parser, and injected fetch', async () => {
+  const requests: Array<{ readonly url: string; readonly init?: RequestInit }> = [];
+  const fetchMock: typeof fetch = async (input, init) => {
+    requests.push({ url: String(input), init });
+    return requests.length === 1
+      ? new Response('{"object_id":116328147937082782}', { status: 201 })
+      : new Response('custom response', { status: 200 });
+  };
+  const client = createClient('token', {
+    baseUrl: 'https://api.test/base',
+    fetch: fetchMock,
+  });
+
+  const described = await client.call({
+    path: 'objects/{object_id}',
+    options: {
+      method: 'POST',
+      path: { object_id: 'a/b' },
+      query: { enabled: false, empty: '' },
+      body: { object_id: '116328147937082782' },
+      requestDescriptor: { object_id: true },
+      responseDescriptor: { object_id: true },
+    },
+  });
+  assert.equal(described.status, 201);
+  assert.deepEqual(described.data, { object_id: '116328147937082782' });
+  assert.equal(requests[0]?.url, 'https://api.test/base/objects/a%2Fb?enabled=false&empty=');
+  assert.equal(requests[0]?.init?.body, '{"object_id":116328147937082782}');
+
+  const parsed = await client.call({
+    path: 'custom',
+    options: {
+      parseResponse(text) {
+        return { text };
+      },
+    },
+  });
+  assert.deepEqual(parsed.data, { text: 'custom response' });
+  assert.equal(requests.length, 2);
+});
+
 test('real fetch transport covers protocol, HTTP, redirect, abort, timeout, and uploads', async (context) => {
   let mode: Mode = 'bot';
   let authorization: string | undefined;

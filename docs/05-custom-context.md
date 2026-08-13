@@ -25,3 +25,7 @@ bot.command('start', async (ctx) => {
   return ctx.reply('Привет!');
 });
 ```
+
+Для переиспользуемых middleware расширяйте контекст структурными intersections, а не
+runtime registry. Порядок важен: middleware должен установить поле до handler-а, который
+его читает. Полный flavor/plugin и session contracts приведены в [plugins.md](plugins.md).
