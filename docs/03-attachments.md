@@ -10,7 +10,7 @@ import {
   ShareAttachment,
   StickerAttachment,
   VideoAttachment,
-} from '@tlman/max-bot-sdk/attachments';
+} from '@tlman/max-bot-sdk/core/helpers/attachments';
 ```
 
 ## Отправка файлов

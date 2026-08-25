@@ -1,6 +1,6 @@
 import { Bot } from '@tlman/max-bot-sdk/bot';
-import * as button from '@tlman/max-bot-sdk/buttons';
-import { inlineKeyboard } from '@tlman/max-bot-sdk/keyboard';
+import * as button from '@tlman/max-bot-sdk/core/helpers/buttons';
+import { inlineKeyboard } from '@tlman/max-bot-sdk/core/helpers/keyboard';
 
 const token = process.env.MAX_BOT_TOKEN;
 if (!token) throw new Error('Token not provided');

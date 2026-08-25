@@ -18,7 +18,7 @@ for (const name of requiredEnvironment) {
 
 const requireCandidate = createRequire(join(process.env.LIVE_PACKAGE_ROOT, 'package.json'));
 const { Bot } = requireCandidate('@tlman/max-bot-sdk/bot');
-const { parseUpdate } = requireCandidate('@tlman/max-bot-sdk/parse-update');
+const { parseUpdate } = requireCandidate('@tlman/max-bot-sdk/core/network/api/parse-update');
 const runId = randomUUID();
 const webhookUrl = new URL(runId, withTrailingSlash(process.env.MAX_TEST_WEBHOOK_BASE_URL)).toString();
 const secret = randomUUID().replaceAll('-', '_');

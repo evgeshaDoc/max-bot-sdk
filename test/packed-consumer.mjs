@@ -9,10 +9,16 @@ const temporaryDirectory = mkdtempSync(join(tmpdir(), 'max-sdk-consumer-'));
 const subpaths = [
   'api', 'bot', 'composer', 'context', 'filter-query', 'filters', 'middleware', 'session',
   'webhook', 'webhook-adapters', 'webhook-server',
-  'attachments', 'buttons', 'keyboard', 'upload', 'client', 'errors', 'parse-update',
-  'raw-api', 'modules/subscriptions', 'api-methods', 'types/attachment',
-  'types/attachment-request', 'types/bot', 'types/chat', 'types/common', 'types/int64',
-  'types/keyboard', 'types/markup', 'types/message', 'types/update', 'types/upload', 'types/user',
+  'core/helpers/attachments', 'core/helpers/buttons', 'core/helpers/keyboard',
+  'core/helpers/upload', 'core/network/api/client', 'core/network/api/error',
+  'core/network/api/parse-update', 'core/network/api/raw-api',
+  'core/network/api/modules/subscriptions/types', 'core/network/api/modules/types',
+  'core/network/api/types/attachment', 'core/network/api/types/attachment-request',
+  'core/network/api/types/bot', 'core/network/api/types/chat',
+  'core/network/api/types/common', 'core/network/api/types/int64',
+  'core/network/api/types/keyboard', 'core/network/api/types/markup',
+  'core/network/api/types/message', 'core/network/api/types/update',
+  'core/network/api/types/uploads', 'core/network/api/types/user',
 ];
 
 try {
@@ -31,7 +37,7 @@ try {
 const assert = require('node:assert/strict');
 const { Bot } = require('${packageName}/bot');
 const { Context } = require('${packageName}/context');
-const { parseUpdate } = require('${packageName}/parse-update');
+const { parseUpdate } = require('${packageName}/core/network/api/parse-update');
 assert.throws(() => require('${packageName}'));
 for (const subpath of ${JSON.stringify(subpaths)}) require('${packageName}/' + subpath);
 class CustomContext extends Context {}
@@ -59,12 +65,12 @@ const fetch = async (input) => {
 
   const esmConsumer = `
 import assert from 'node:assert/strict';
-import { parseUpdate } from '${packageName}/parse-update';
-import { inlineKeyboard } from '${packageName}/keyboard';
-import { callback, createButton } from '${packageName}/buttons';
-import { Upload } from '${packageName}/upload';
-import '${packageName}/modules/subscriptions';
-import '${packageName}/api-methods';
+import { parseUpdate } from '${packageName}/core/network/api/parse-update';
+import { inlineKeyboard } from '${packageName}/core/helpers/keyboard';
+import { callback, createButton } from '${packageName}/core/helpers/buttons';
+import { Upload } from '${packageName}/core/helpers/upload';
+import '${packageName}/core/network/api/modules/subscriptions/types';
+import '${packageName}/core/network/api/modules/types';
 for (const subpath of ${JSON.stringify(subpaths)}) {
   await import('${packageName}/' + subpath);
 }
@@ -88,18 +94,18 @@ assert.equal(typeof Upload, 'function');
 
   const typeConsumer = `
 import { Bot } from '${packageName}/bot';
-import type { ApiTransformer } from '${packageName}/client';
+import type { ApiTransformer } from '${packageName}/core/network/api/client';
 import { Context } from '${packageName}/context';
-import { createButton } from '${packageName}/buttons';
+import { createButton } from '${packageName}/core/helpers/buttons';
 import type { FilterQuery } from '${packageName}/filter-query';
 import type { MiddlewareFn } from '${packageName}/middleware';
 import { session } from '${packageName}/session';
 import type { SessionFlavor, StorageAdapter } from '${packageName}/session';
 import { nodeHttpWebhookAdapter } from '${packageName}/webhook-adapters';
 import { serveWebhook } from '${packageName}/webhook-server';
-import type { Int64 } from '${packageName}/types/int64';
-import type { ParsedUpdate } from '${packageName}/types/update';
-import type { Button } from '${packageName}/types/keyboard';
+import type { Int64 } from '${packageName}/core/network/api/types/int64';
+import type { ParsedUpdate } from '${packageName}/core/network/api/types/update';
+import type { Button } from '${packageName}/core/network/api/types/keyboard';
 type AuditFlavor = { audit: { updateType: string } };
 type RequestFlavor = { requestId: string };
 type PluginContext = Context & AuditFlavor & RequestFlavor;

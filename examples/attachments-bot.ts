@@ -3,7 +3,7 @@ import {
   ImageAttachment,
   LocationAttachment,
   StickerAttachment,
-} from '@tlman/max-bot-sdk/attachments';
+} from '@tlman/max-bot-sdk/core/helpers/attachments';
 
 import fs from 'fs';
 import path from 'path';

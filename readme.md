@@ -67,7 +67,7 @@ Session middleware требует явные `storage`, `initial` и `getSession
 Все документированные MAX `int64` представлены как canonical decimal strings:
 
 ```ts
-import type { Int64 } from '@tlman/max-bot-sdk/types/int64';
+import type { Int64 } from '@tlman/max-bot-sdk/core/network/api/types/int64';
 
 const chatId: Int64 = '9223372036854775807';
 await bot.api.sendMessageToChat(chatId, 'Без потери точности');

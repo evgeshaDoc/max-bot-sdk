@@ -2,8 +2,8 @@
 Клавиатура и кнопки импортируются напрямую из отдельных модулей.
 
 ```typescript
-import { inlineKeyboard } from '@tlman/max-bot-sdk/keyboard';
-import * as button from '@tlman/max-bot-sdk/buttons';
+import { inlineKeyboard } from '@tlman/max-bot-sdk/core/helpers/keyboard';
+import * as button from '@tlman/max-bot-sdk/core/helpers/buttons';
 
 const keyboard = inlineKeyboard([
   // 1-я строка с 3-мя кнопками
@@ -21,8 +21,8 @@ const keyboard = inlineKeyboard([
 определяет допустимые параметры и точный тип результата:
 
 ```typescript
-import { createButton } from '@tlman/max-bot-sdk/buttons';
-import type { Button } from '@tlman/max-bot-sdk/types/keyboard';
+import { createButton } from '@tlman/max-bot-sdk/core/helpers/buttons';
+import type { Button } from '@tlman/max-bot-sdk/core/network/api/types/keyboard';
 
 const button: Button = createButton(
   'callback',
