@@ -1,4 +1,5 @@
-import type { MaybePromise } from '../../helpers/types';
+import type { PromiseMay, Rec } from '@tsofist/stem';
+
 import type { ApiMethods } from './modules/types';
 
 /** HTTP methods implemented by the current MAX Bot API table. */
@@ -16,8 +17,8 @@ export interface ClientResponse {
 
 /** Request fields an API transformer may replace before wire validation. */
 export interface TransformableRequestOptions {
-  readonly path?: Readonly<Record<string, string | number>>;
-  readonly query?: Readonly<Record<string, QueryValue | readonly QueryValue[]>>;
+  readonly path?: Readonly<Rec<string | number>>;
+  readonly query?: Readonly<Rec<QueryValue | readonly QueryValue[]>>;
   readonly body?: object | null;
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
@@ -39,4 +40,4 @@ export type ApiCallNext = (
 export type ApiTransformer = (
   next: ApiCallNext,
   call: ApiCallMetadata,
-) => MaybePromise<void>;
+) => PromiseMay<void>;

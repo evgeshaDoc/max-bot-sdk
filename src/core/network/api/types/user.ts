@@ -19,5 +19,9 @@ export interface UserWithPhoto extends User {
   full_avatar_url?: string;
 }
 
-/** User locale in IETF BCP 47 format. */
+/**
+ * User locale in IETF BCP 47 format.
+ * @example 'ru-RU'
+ * @public
+ */
 export type UserLocale = string;

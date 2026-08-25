@@ -28,8 +28,11 @@ type MakeUpdate<Kind extends UpdateType, Payload extends object> = {
   timestamp: Int64;
 } & Payload;
 
-/** Callback data delivered when a user presses an inline button. */
-export interface Callback {
+/**
+ * Callback data delivered when a user presses an inline button.
+ * @public
+ */
+export interface CallbackData {
   timestamp: Int64;
   callback_id: string;
   payload?: string;
@@ -37,7 +40,7 @@ export interface Callback {
 }
 
 export type MessageCallbackUpdate = MakeUpdate<'message_callback', {
-  callback: Callback;
+  callback: CallbackData;
   message: Message | null;
   user_locale?: UserLocale | null;
 }>;

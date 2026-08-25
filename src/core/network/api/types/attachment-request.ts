@@ -1,3 +1,5 @@
+import type { Rec } from '@tsofist/stem';
+
 import type { NullableObject } from '../../../helpers/types';
 
 import type { InlineButton, ReplyButton } from './keyboard';
@@ -79,7 +81,7 @@ export type ShareAttachmentRequest = {
 export type PhotoAttachmentRequestPayload = {
   url?: string | null;
   token?: string | null;
-  photos?: Record<string, { token: string }> | null;
+  photos?: Rec<{ token: string }> | null;
 };
 
 export type AttachmentRequest =

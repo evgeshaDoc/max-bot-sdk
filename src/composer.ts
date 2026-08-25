@@ -258,8 +258,11 @@ function compileFilters<
   UpdateValue extends Update,
   Filter extends FilterQuery | Guard<UpdateValue>,
 >(filters: MaybeArray<Filter>): Guard<UpdateValue, FilteredUpdateFor<UpdateValue, Filter>> {
-  const predicates = (Array.isArray(filters) ? filters : [filters]).map((filter) => (
-    typeof filter === 'function' ? filter : compileFilterQuery(filter)
+  const filterList = (Array.isArray(filters) ? filters : [filters]) as readonly Filter[];
+  const predicates: readonly ((update: UpdateValue) => boolean)[] = filterList.map((filter) => (
+    typeof filter === 'function'
+      ? filter as Guard<UpdateValue>
+      : compileFilterQuery(filter as FilterQuery)
   ));
   return function matchesFilter(
     update: UpdateValue,

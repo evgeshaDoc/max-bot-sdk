@@ -1,3 +1,6 @@
+import type { Rec } from '@tsofist/stem';
+import { keysOf } from '@tsofist/stem/lib/object/keys';
+
 import type { Guard } from './core/helpers/types';
 import type { Attachment } from './core/network/api/types/attachment';
 import { KnownUpdateTypes, type Update } from './core/network/api/types/update';
@@ -22,19 +25,29 @@ const AttachmentQueryTypes = {
   share: true,
   location: true,
   data: true,
-} as const satisfies Record<Attachment['type'], true>;
+} as const satisfies Rec<true, Attachment['type']>;
 
 const UpdateTypeSet = new Set<string>(KnownUpdateTypes);
-const AttachmentQueryTypeSet = new Set<string>(Object.keys(AttachmentQueryTypes));
+const AttachmentQueryTypeSet = new Set<string>(keysOf(AttachmentQueryTypes));
 const MessageUpdateTypeSet = new Set<string>(['message_created', 'message_edited']);
 
 /** Compiles one validated MAX filter query into an update predicate. */
 export function compileFilterQuery<Query extends FilterQuery>(
   query: Query,
 ): Guard<Update, FilterQueryUpdate<Update, Query>> {
-  if (typeof query !== 'string') throw invalidQuery(query);
+  if (typeof query !== 'string') {
+    throw new TypeError(
+      `Invalid MAX filter query ${String(query)}. Expected an update type, `
+      + 'message text/attachment refinement, callback payload/message, or bot start payload.',
+    );
+  }
   const segments = query.split(':');
-  if (!isValidQuery(segments)) throw invalidQuery(query);
+  if (!isValidQuery(segments)) {
+    throw new TypeError(
+      `Invalid MAX filter query ${String(query)}. Expected an update type, `
+      + 'message text/attachment refinement, callback payload/message, or bot start payload.',
+    );
+  }
 
   function matchesFilterQuery(
     update: Update,
@@ -78,11 +91,4 @@ function isValidQuery(segments: string[]): boolean {
   if (segments[1] !== 'attachment') return false;
   return segments.length === 2
     || (segments.length === 3 && AttachmentQueryTypeSet.has(segments[2]));
-}
-
-function invalidQuery(query: unknown): TypeError {
-  return new TypeError(
-    `Invalid MAX filter query ${String(query)}. Expected an update type, `
-    + 'message text/attachment refinement, callback payload/message, or bot start payload.',
-  );
 }

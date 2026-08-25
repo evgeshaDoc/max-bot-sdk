@@ -132,6 +132,21 @@ test('known updates reject stale nested discriminants', () => {
       + '[[{"type":"callback","text":"Run","payload":"go","intent":"stale"}]]}}]',
   );
   assert.throws(() => parseUpdate(staleIntent), MaxUpdateParseError);
+  const chatButton = base.replace('"not-a-chat"', '"chat"').replace(
+    '"attachments":null',
+    '"attachments":[{"type":"inline_keyboard","payload":{"buttons":'
+      + '[[{"type":"chat","text":"Open","chat_title":"Support",'
+      + '"uuid":"018f5f1e-7b84-7c3c-9bd8-df7b467216a6"}]]}}]',
+  );
+  assert.equal(parseUpdate(chatButton).kind, 'known');
+  assert.throws(
+    () => parseUpdate(chatButton.replace('"018f5f1e-7b84-7c3c-9bd8-df7b467216a6"', '1')),
+    MaxUpdateParseError,
+  );
+  assert.throws(
+    () => parseUpdate(chatButton.replace('018f5f1e-7b84-7c3c-9bd8-df7b467216a6', 'not-a-uuid')),
+    MaxUpdateParseError,
+  );
   const replyButton = base.replace('"not-a-chat"', '"chat"').replace(
     '"attachments":null',
     '"attachments":[{"type":"reply_keyboard","buttons":'

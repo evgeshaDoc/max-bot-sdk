@@ -1,6 +1,6 @@
 import type { Attachment } from './core/network/api/types/attachment';
 import type { Guard } from './core/helpers/types';
-import type { Callback, Update, UpdateType } from './core/network/api/types/update';
+import type { CallbackData, Update, UpdateType } from './core/network/api/types/update';
 import type { Message, MessageBody } from './core/network/api/types/message';
 
 /** Attachment discriminants accepted by MAX filter queries. */
@@ -49,7 +49,7 @@ type MessageUpdateWithAttachment<
 type CallbackUpdateWithPayload<UpdateValue extends Update> = UpdateOfType<
 UpdateValue,
 'message_callback'
-> & { callback: Callback & { payload: string } };
+> & { callback: CallbackData & { payload: string } };
 
 type CallbackUpdateWithMessage<UpdateValue extends Update> = UpdateOfType<
 UpdateValue,

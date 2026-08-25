@@ -1,6 +1,7 @@
-import { assertInt64 } from './types/int64';
+import type { URec } from '@tsofist/stem';
+import { isUUIDString } from '@tsofist/stem/lib/crypto/uuid/guards';
 
-type UnknownRecord = Record<string, unknown>;
+import { assertInt64 } from './types/int64';
 
 const attachmentTypes = [
   'image', 'video', 'audio', 'file', 'sticker', 'contact', 'share', 'location',
@@ -16,8 +17,7 @@ const markupTypes = [
   'heading', 'highlighted', 'quote', 'user_mention',
 ] as const;
 
-/** Validates a normalized public MAX user shape. */
-export function assertUserShape(value: unknown): asserts value is UnknownRecord {
+export function assertUserShape(value: unknown): asserts value is URec {
   const user = expectObject(value);
   expectInt64(user.user_id);
   expectString(user.first_name);
@@ -31,8 +31,7 @@ export function assertUserShape(value: unknown): asserts value is UnknownRecord 
   if (user.full_avatar_url !== undefined) expectString(user.full_avatar_url);
 }
 
-/** Validates every documented nested discriminant in a normalized MAX message. */
-export function assertMessageShape(value: unknown): asserts value is UnknownRecord {
+export function assertMessageShape(value: unknown): asserts value is URec {
   const message = expectObject(value);
   if (message.sender !== undefined && message.sender !== null) assertUserShape(message.sender);
   const recipient = expectObject(message.recipient);
@@ -142,7 +141,7 @@ function assertAttachment(value: unknown): void {
   }
 }
 
-function assertMediaPayload(value: unknown): UnknownRecord {
+function assertMediaPayload(value: unknown): URec {
   const payload = expectObject(value);
   expectString(payload.url);
   expectString(payload.token);
@@ -176,7 +175,9 @@ function assertButtonRows(value: unknown, keyboard: 'inline' | 'reply'): void {
         expectString(button.chat_title);
         if (button.chat_description !== undefined) expectNullableString(button.chat_description);
         if (button.start_payload !== undefined) expectNullableString(button.start_payload);
-        expectOptionalNullableNumber(button.uuid);
+        if (button.uuid !== undefined && button.uuid !== null && !isUUIDString(button.uuid)) {
+          fail();
+        }
       }
       if (type === 'open_app') {
         expectString(button.web_app);
@@ -208,9 +209,9 @@ function assertMarkup(value: unknown): void {
   }
 }
 
-function expectObject(value: unknown): UnknownRecord {
+function expectObject(value: unknown): URec {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) fail();
-  return value as UnknownRecord;
+  return value as URec;
 }
 
 function expectArray(value: unknown): unknown[] {

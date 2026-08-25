@@ -14,6 +14,7 @@ import { normalizeWireValue, type WireDescriptor } from '../network/api/wire-des
 type FileSource = string | fs.ReadStream | Buffer;
 
 type DefaultOptions = {
+  /** Upload deadline in milliseconds. @default 20000 */
   timeout?: number;
 };
 
@@ -47,7 +48,7 @@ export type UploadVideoOptions = UploadFromSourceOptions & DefaultOptions;
 export type UploadFileOptions = UploadFromSourceOptions & DefaultOptions;
 export type UploadAudioOptions = UploadFromSourceOptions & DefaultOptions;
 
-const DEFAULT_UPLOAD_TIMEOUT = 20_000; // ms
+const DEFAULT_UPLOAD_TIMEOUT = 20_000;
 
 /**
  * Параметры загрузки чатка через Content-Range

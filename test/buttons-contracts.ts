@@ -17,6 +17,9 @@ const buttons: Button[] = [
   createButton('user_geo_location', 'Send location'),
   createButton('user_contact', 'Send contact'),
   createButton('chat', 'Chat', 'Support'),
+  createButton('chat', 'Chat', 'Support', {
+    uuid: '018f5f1e-7b84-7c3c-9bd8-df7b467216a6',
+  }),
   createButton('open_app', 'App', 'https://app.test'),
 ];
 
@@ -34,3 +37,7 @@ createButton('callback', 'Missing payload');
 createButton('link', 'MAX', { payload: 'wrong' });
 // @ts-expect-error contact ID must preserve MAX int64 as a decimal string
 createButton('open_app', 'App', 'https://app.test', { contactId: 1 });
+// @ts-expect-error chat UUID must be a UUID string
+createButton('chat', 'Chat', 'Support', { uuid: 1 });
+// @ts-expect-error arbitrary strings are not UUID-shaped
+createButton('chat', 'Chat', 'Support', { uuid: 'not-a-uuid' });

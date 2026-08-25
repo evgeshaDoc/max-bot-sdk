@@ -65,7 +65,7 @@ button.requestGeoLocation(text: string, extra?: { quick?: boolean });
 button.chat(text: string, chatTitle: string, extra?: { 
   chat_description?: string | null;
   start_payload?: string | null;
-  uuid?: number | null;
+  uuid?: UUID | null;
 });
 ```
 Добавляет кнопку создания чата. При нажатии на неё будет создан новый чат с ботом и пользователем.

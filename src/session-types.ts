@@ -1,5 +1,6 @@
+import type { PromiseMay } from '@tsofist/stem';
+
 import type { Context } from './context';
-import type { MaybePromise } from './core/helpers/types';
 
 /** Context fields installed by {@link session} for the current update. */
 export type SessionFlavor<Data extends object> = {
@@ -12,11 +13,11 @@ export type SessionFlavor<Data extends object> = {
 /** Persistent storage used by session middleware. */
 export interface StorageAdapter<Data extends object> {
   /** Reads an isolated session value, or `undefined` when the key is absent. */
-  read(key: string): MaybePromise<Data | undefined>;
+  read(key: string): PromiseMay<Data | undefined>;
   /** Persists the session value after successful downstream processing. */
-  write(key: string, value: Data): MaybePromise<void>;
+  write(key: string, value: Data): PromiseMay<void>;
   /** Deletes the session value after successful downstream processing. */
-  delete(key: string): MaybePromise<void>;
+  delete(key: string): PromiseMay<void>;
 }
 
 /** Configuration for one single-process session middleware instance. */
@@ -32,12 +33,12 @@ export interface SessionOptions<
    */
   readonly storage: StorageAdapter<Data>;
   /** Creates a fresh value whenever storage returns `undefined`. */
-  readonly initial: (context: ContextType) => MaybePromise<Data>;
+  readonly initial: (context: ContextType) => PromiseMay<Data>;
   /**
    * Resolves the serialization key for this update.
    *
    * Ordering is guaranteed only among updates using the same `session(...)` instance
    * in one process. Async resolvers enter the queue in resolver-completion order.
    */
-  readonly getSessionKey: (context: ContextType) => MaybePromise<string>;
+  readonly getSessionKey: (context: ContextType) => PromiseMay<string>;
 }

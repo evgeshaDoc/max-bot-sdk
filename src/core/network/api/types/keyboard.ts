@@ -1,3 +1,5 @@
+import type { UUID } from '@tsofist/stem/lib/crypto/uuid/types';
+
 import type { Int64 } from './int64';
 
 export type ButtonIntent = 'default' | 'positive' | 'negative';
@@ -23,6 +25,7 @@ export type RequestContactButton = {
 export type RequestGeoLocationButton = {
   type: 'request_geo_location';
   text: string;
+  /** @default false */
   quick?: boolean;
 };
 
@@ -59,7 +62,7 @@ export type ChatButton = {
   chat_title: string;
   chat_description?: string | null;
   start_payload?: string | null;
-  uuid?: number | null;
+  uuid?: UUID | null;
 };
 
 export type OpenAppButton = {

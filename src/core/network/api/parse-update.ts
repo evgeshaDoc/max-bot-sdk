@@ -1,3 +1,6 @@
+import type { URec } from '@tsofist/stem';
+import { entriesOf } from '@tsofist/stem/lib/object/entries-of';
+
 import { MaxUpdateParseError } from './error';
 import { parseLosslessJson } from './json';
 import { updateDescriptor } from './wire-contracts';
@@ -14,17 +17,15 @@ import {
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 const knownUpdateTypes = new Set<string>(KnownUpdateTypes);
 
-type UnknownRecord = Record<string, unknown>;
-
 function decodeBody(rawBody: string | Uint8Array): string {
   return typeof rawBody === 'string' ? rawBody : utf8Decoder.decode(rawBody);
 }
 
-function expectRecord(value: unknown): UnknownRecord {
+function expectRecord(value: unknown): URec {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError('Expected an object');
   }
-  return value as UnknownRecord;
+  return value as URec;
 }
 
 function expectString(value: unknown): string {
@@ -47,19 +48,19 @@ function normalizeOptionalInt64(value: unknown): Int64 | null | undefined {
   return expectInt64(value);
 }
 
-function normalizeUser(value: unknown): UnknownRecord {
+function normalizeUser(value: unknown): URec {
   const user = expectRecord(value);
   assertUserShape(user);
   return user;
 }
 
-function normalizeMessage(value: unknown): UnknownRecord {
+function normalizeMessage(value: unknown): URec {
   const message = expectRecord(value);
   assertMessageShape(message);
   return message;
 }
 
-function normalizeCallback(value: unknown): UnknownRecord {
+function normalizeCallback(value: unknown): URec {
   const callback = expectRecord(value);
   if (callback.payload !== undefined) expectString(callback.payload);
   return {
@@ -70,7 +71,7 @@ function normalizeCallback(value: unknown): UnknownRecord {
   };
 }
 
-function normalizeKnownUpdate(root: UnknownRecord, updateType: UpdateType): UnknownRecord {
+function normalizeKnownUpdate(root: URec, updateType: UpdateType): URec {
   if (root.user_locale !== undefined && root.user_locale !== null) {
     expectString(root.user_locale);
   }
@@ -138,7 +139,7 @@ function normalizeKnownUpdate(root: UnknownRecord, updateType: UpdateType): Unkn
   }
 }
 
-function normalizeUserUpdate(update: UnknownRecord, root: UnknownRecord): UnknownRecord {
+function normalizeUserUpdate(update: URec, root: URec): URec {
   return {
     ...update,
     chat_id: expectInt64(root.chat_id),
@@ -170,7 +171,7 @@ export function parseUpdatesResponse(rawBody: string): {
   try {
     const root = expectRecord(parseLosslessJson(rawBody));
     if (!Array.isArray(root.updates)) throw new TypeError('Expected updates array');
-    for (const [key, value] of Object.entries(root)) {
+    for (const [key, value] of entriesOf(root)) {
       if (key !== 'updates' && key !== 'marker') normalizeWireValue(value);
     }
     return {

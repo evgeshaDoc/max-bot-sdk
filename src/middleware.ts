@@ -1,17 +1,18 @@
+import type { PromiseMay } from '@tsofist/stem';
+
 import type { Context } from './context';
-import type { MaybePromise } from './core/helpers/types';
 
 export type NextFn = () => Promise<void>;
 
 /** A synchronous or asynchronous predicate over a middleware context. */
 export type ContextPredicate<ContextType extends Context> = (
   context: ContextType,
-) => MaybePromise<boolean>;
+) => PromiseMay<boolean>;
 
 export type MiddlewareFn<ContextType extends Context> = (
   context: ContextType,
   next: NextFn,
-) => MaybePromise<unknown>;
+) => PromiseMay<unknown>;
 
 /** Object exposing Composer-compatible middleware. */
 export interface MiddlewareObj<ContextType extends Context> {
@@ -27,4 +28,4 @@ export type MiddlewareErrorHandler<ContextType extends Context> = (
   error: unknown,
   context: ContextType,
   next: NextFn,
-) => MaybePromise<void>;
+) => PromiseMay<void>;

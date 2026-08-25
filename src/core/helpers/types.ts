@@ -4,8 +4,6 @@ export type NullableObject<ObjectType> = {
 
 export type MaybeArray<Value> = Value | readonly Value[];
 
-export type MaybePromise<Value> = Value | Promise<Value>;
-
 export type Guard<Input = unknown, Output extends Input = Input> = (
   value: Input
 ) => value is Output;

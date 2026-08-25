@@ -1,9 +1,9 @@
 import createDebug from 'debug';
+import type { PromiseMay } from '@tsofist/stem';
 
 import { Api } from './api';
 import { Composer } from './composer';
 import { Context } from './context';
-import type { MaybePromise } from './core/helpers/types';
 import { createClient, type ClientOptions } from './core/network/api/client';
 import { BotNotInitializedError } from './core/network/api/error';
 import type { BotInfo } from './core/network/api/types/bot';
@@ -21,20 +21,20 @@ export interface BotConfig<ContextType extends Context> {
   /** HTTP client settings shared by every API call. */
   readonly clientOptions?: ClientOptions;
 
-  /** Context implementation instantiated for each known update. */
+  /** Context implementation instantiated for each known update. @default Context */
   readonly contextType?: ContextConstructor<ContextType>;
 }
 
 /** Long-polling launch settings. */
 export interface LaunchOptions {
-  /** Update kinds requested from MAX. An empty list requests every known kind. */
+  /** Update kinds requested from MAX. An empty list requests every known kind. @default [] */
   readonly allowedUpdates?: readonly UpdateType[];
 }
 
 type PollingErrorHandler<ContextType extends Context> = (
   error: unknown,
   context: ContextType,
-) => MaybePromise<void>;
+) => PromiseMay<void>;
 
 function finishMiddleware(): Promise<void> {
   return Promise.resolve();

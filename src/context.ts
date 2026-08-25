@@ -104,7 +104,8 @@ export class Context<UpdateValue extends Update = Update> {
     this: ContextType,
     filters: MaybeArray<Filter>,
   ): this is FilteredContext<ContextType, Filter> {
-    for (const filter of Array.isArray(filters) ? filters : [filters]) {
+    const filterList = (Array.isArray(filters) ? filters : [filters]) as readonly Filter[];
+    for (const filter of filterList) {
       if (typeof filter === 'function' ? filter(this.update) : compileFilterQuery(filter)(this.update)) {
         return true;
       }

@@ -89,6 +89,7 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@tsofist/stem": "8.2.1",
     "debug": "^4.3.7",
     "lossless-json": "4.3.1",
     "vcf": "^2.1.2"

@@ -1,4 +1,4 @@
-import type { MaybePromise } from './core/helpers/types';
+import type { PromiseMay, Rec } from '@tsofist/stem';
 
 /** Webhook request settings shared by every ingress adapter. */
 export interface WebhookOptions {
@@ -64,7 +64,7 @@ export interface WebhookAdapterRequest {
   readonly contentLength: number | undefined;
 
   /** Reads the original UTF-8 text or bytes without parsing or reserializing JSON. */
-  readBody(maxBytes: number): MaybePromise<string | Uint8Array>;
+  readBody(maxBytes: number): PromiseMay<string | Uint8Array>;
 }
 
 /** One adapter-owned request/response lifecycle. */
@@ -73,7 +73,7 @@ export interface WebhookExchange<Result> {
   readonly request: WebhookAdapterRequest;
 
   /** Applies the processor response to the adapter's response object. */
-  respond(response: Response): MaybePromise<Result>;
+  respond(response: Response): PromiseMay<Result>;
 }
 
 /** Converts a framework callback into one raw webhook exchange. */
@@ -88,7 +88,7 @@ export interface BufferedWebhookRequest {
   readonly method: string;
 
   /** Framework-normalized request headers. */
-  readonly headers: Readonly<Record<string, string | readonly string[] | undefined>>;
+  readonly headers: Readonly<Rec<string | readonly string[] | undefined>>;
 
   /** Preferred raw body exposed by framework integrations such as Nest. */
   readonly rawBody?: unknown;

@@ -1,3 +1,5 @@
+import type { Rec, URec } from '@tsofist/stem';
+
 import type { HttpMethod } from './client';
 import { assertInt64 } from './types/int64';
 import { KnownUpdateTypes } from './types/update';
@@ -62,7 +64,7 @@ const newMessage = {
   }],
 } as const satisfies WireDescriptor;
 
-const contracts: Readonly<Record<string, WireContract>> = {
+const contracts: Readonly<Rec<WireContract>> = {
   'GET me': { response: user, validateResponse: validateUser },
   'PATCH me/commands': { validateResponse: validateCommands },
   'GET chats/{chat_id}': { path: chatPath, response: chat, validateResponse: validateChat },
@@ -313,11 +315,11 @@ function validateVideo(value: unknown): void {
   }
 }
 
-function expectObject(value: unknown): Record<string, unknown> {
+function expectObject(value: unknown): URec {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError('Expected MAX response object');
   }
-  return value as Record<string, unknown>;
+  return value as URec;
 }
 
 function expectArray(value: unknown): unknown[] {

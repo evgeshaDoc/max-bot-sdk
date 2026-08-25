@@ -1,3 +1,7 @@
+import { entriesOf } from '@tsofist/stem/lib/object/entries-of';
+import { hasOwn } from '@tsofist/stem/lib/object/has-own';
+import { isNonNully } from '@tsofist/stem/lib/nully';
+
 import { MaxError, MaxErrorKind } from './error';
 import { parseLosslessJson, stringifyLosslessJson } from './json';
 import {
@@ -8,12 +12,18 @@ import {
 } from './wire-descriptors';
 import { getWireContract } from './wire-contracts';
 import type {
+  Client,
+  ClientCallOptions,
+  ClientOptions,
+  RawRequestOptions,
+  RequestOptions,
+} from './client-types';
+import type {
   ApiCallMetadata,
   ApiCallNext,
   ApiTransformer,
   ClientResponse,
   HttpMethod,
-  QueryValue,
   TransformableRequestOptions,
 } from './transformer-types';
 
@@ -26,6 +36,13 @@ export type {
   QueryValue,
   TransformableRequestOptions,
 } from './transformer-types';
+export type {
+  Client,
+  ClientCallOptions,
+  ClientOptions,
+  RawRequestOptions,
+  RequestOptions,
+} from './client-types';
 
 const DEFAULT_BASE_URL = 'https://platform-api2.max.ru';
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -39,6 +56,11 @@ interface TrustedCallSpecification {
   readonly contract: ReturnType<typeof getWireContract>;
 }
 
+/**
+ * Input for the terminal transformer stage: the final trusted transport that
+ * validates and performs the HTTP request exactly once after all transformers.
+ * @private
+ */
 interface TrustedTerminalInput {
   readonly token: string;
   readonly fetchImplementation: typeof globalThis.fetch;
@@ -49,47 +71,14 @@ interface TrustedTerminalInput {
   readonly request: Readonly<TransformableRequestOptions>;
 }
 
-/** Configures the single HTTP transport used by the SDK. */
-export interface ClientOptions {
-  readonly fetch?: typeof globalThis.fetch;
-  /** Request deadline in milliseconds. @default 10000 */
-  readonly timeoutMs?: number;
-  readonly signal?: AbortSignal;
-  readonly baseUrl?: string;
-}
-
-export interface RequestOptions {
-  readonly method?: HttpMethod;
-  readonly body?: object | null;
-  readonly query?: Readonly<Record<string, QueryValue | readonly QueryValue[]>>;
-  readonly path?: Readonly<Record<string, string | number>>;
-  readonly signal?: AbortSignal;
-  readonly timeoutMs?: number;
-  readonly requestDescriptor?: WireDescriptor;
-  readonly responseDescriptor?: WireDescriptor;
-  readonly parseResponse?: (text: string) => unknown;
-}
-
-export interface ClientCallOptions {
-  readonly path: string;
-  readonly options: RequestOptions;
-}
-
-export interface RawRequestOptions {
-  readonly url: string;
-  readonly init: RequestInit;
-  readonly timeoutMs?: number;
-}
-
-/** A configured MAX HTTP client. */
-export interface Client {
-  readonly call: (options: ClientCallOptions) => Promise<ClientResponse>;
-  readonly request: (options: RawRequestOptions) => Promise<Response>;
-  /** Adds global transformers for future API calls. */
-  use(...transformers: ApiTransformer[]): this;
-}
-
-/** Creates the SDK's single injected-fetch MAX transport. */
+/**
+ * Creates the SDK's single injected-fetch MAX transport.
+ * @param token - MAX bot access token.
+ * @param options - Transport defaults and injected dependencies.
+ * @returns A configured client for MAX API and pre-signed upload requests.
+ * @throws {MaxError} If the base URL or timeout is invalid.
+ * @public
+ */
 export function createClient(token: string, options: ClientOptions = {}): Client {
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -216,10 +205,12 @@ async function executeTransformerChain(
   ): Promise<ClientResponse> {
     if (index === transformers.length) {
       if (terminalStarted) {
-        throw transformerProtocolError(
-          terminalInput.specification,
-          'MAX API transformer invoked the transport more than once',
-        );
+        throw new MaxError('MAX API transformer invoked the transport more than once', {
+          kind: MaxErrorKind.Protocol,
+          method: terminalInput.specification.method,
+          path: terminalInput.specification.route,
+          ambiguousOutcome: false,
+        });
       }
       terminalStarted = true;
       try {
@@ -261,11 +252,12 @@ async function executeTransformerChain(
               // The trusted terminal records whether the mutation may have applied.
             }
           }
-          duplicateError = transformerProtocolError(
-            terminalInput.specification,
-            'MAX API transformer called next more than once',
-            mutationMayHaveApplied,
-          );
+          duplicateError = new MaxError('MAX API transformer called next more than once', {
+            kind: MaxErrorKind.Protocol,
+            method: terminalInput.specification.method,
+            path: terminalInput.specification.route,
+            ambiguousOutcome: mutationMayHaveApplied,
+          });
           throw duplicateError;
         }());
         rejection.catch(() => undefined);
@@ -302,11 +294,12 @@ async function executeTransformerChain(
         && (!nextFailed || transformerError !== nextError)) {
         throw transformerError;
       }
-      throw transformerProtocolError(
-        terminalInput.specification,
-        'MAX API transformer called next more than once',
-        mutationMayHaveApplied,
-      );
+      throw new MaxError('MAX API transformer called next more than once', {
+        kind: MaxErrorKind.Protocol,
+        method: terminalInput.specification.method,
+        path: terminalInput.specification.route,
+        ambiguousOutcome: mutationMayHaveApplied,
+      });
     }
     if (transformerFailed) {
       if (nextPromise) {
@@ -319,10 +312,12 @@ async function executeTransformerChain(
       throw transformerError;
     }
     if (!nextPromise) {
-      throw transformerProtocolError(
-        terminalInput.specification,
-        'MAX API transformer must call next exactly once',
-      );
+      throw new MaxError('MAX API transformer must call next exactly once', {
+        kind: MaxErrorKind.Protocol,
+        method: terminalInput.specification.method,
+        path: terminalInput.specification.route,
+        ambiguousOutcome: false,
+      });
     }
     return nextPromise;
   }
@@ -336,31 +331,14 @@ function mergeTransformableRequest(
 ): Readonly<TransformableRequestOptions> {
   if (replacement === undefined) return current;
   return {
-    path: hasOwnProperty(replacement, 'path') ? replacement.path : current.path,
-    query: hasOwnProperty(replacement, 'query') ? replacement.query : current.query,
-    body: hasOwnProperty(replacement, 'body') ? replacement.body : current.body,
-    signal: hasOwnProperty(replacement, 'signal') ? replacement.signal : current.signal,
-    timeoutMs: hasOwnProperty(replacement, 'timeoutMs')
+    path: hasOwn(replacement, 'path') ? replacement.path : current.path,
+    query: hasOwn(replacement, 'query') ? replacement.query : current.query,
+    body: hasOwn(replacement, 'body') ? replacement.body : current.body,
+    signal: hasOwn(replacement, 'signal') ? replacement.signal : current.signal,
+    timeoutMs: hasOwn(replacement, 'timeoutMs')
       ? replacement.timeoutMs
       : current.timeoutMs,
   };
-}
-
-function hasOwnProperty(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function transformerProtocolError(
-  specification: TrustedCallSpecification,
-  message: string,
-  ambiguousOutcome = false,
-): MaxError {
-  return new MaxError(message, {
-    kind: MaxErrorKind.Protocol,
-    method: specification.method,
-    path: specification.route,
-    ambiguousOutcome,
-  });
 }
 
 async function executeTrustedCall(input: TrustedTerminalInput): Promise<ClientResponse> {
@@ -497,7 +475,7 @@ function classifyFailure(
 }
 
 function buildPath(template: string, path?: RequestOptions['path']): string {
-  const result = Object.entries(path ?? {}).reduce((value, [key, item]) => {
+  const result = entriesOf(path).reduce((value, [key, item]) => {
     return value.split(`{${key}}`).join(encodeURIComponent(String(item)));
   }, template);
   if (/\{[^}]+\}/.test(result)) {
@@ -511,7 +489,7 @@ function ensureTrailingSlash(url: string): string {
 }
 
 function appendQuery(url: URL, query?: RequestOptions['query']): void {
-  for (const [key, value] of Object.entries(query ?? {})) {
+  for (const [key, value] of entriesOf(query)) {
     if (value !== undefined && value !== null) {
       url.searchParams.set(key, Array.isArray(value) ? value.join(',') : String(value));
     }
@@ -587,9 +565,7 @@ function combineSignals(signals: readonly (AbortSignal | undefined)[]): {
   readonly signal: AbortSignal;
   readonly cleanup: () => void;
 } {
-  const active = signals.filter((signal): signal is AbortSignal => {
-    return signal !== undefined;
-  });
+  const active = signals.filter(isNonNully);
   if (active.length === 1) return { signal: active[0], cleanup: () => {} };
 
   const controller = new AbortController();

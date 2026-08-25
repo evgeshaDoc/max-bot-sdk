@@ -1,3 +1,5 @@
+import type { Rec } from '@tsofist/stem';
+
 import type { Int64 } from './int64';
 import type { Message } from './message';
 import type { UserWithPhoto } from './user';
@@ -16,7 +18,7 @@ export interface Chat {
   last_event_time: Int64;
   participants_count: number;
   owner_id?: Int64 | null;
-  participants?: Record<string, Int64> | null;
+  participants?: Rec<Int64> | null;
   is_public: boolean;
   link?: string | null;
   description: string | null;
