@@ -2,8 +2,6 @@ import type { Context } from './context';
 import type { Middleware } from './middleware';
 import type { SessionFlavor, SessionOptions } from './session-types';
 
-export type { SessionFlavor, SessionOptions, StorageAdapter } from './session-types';
-
 /**
  * Loads, installs, and persists keyed session data around downstream middleware.
  *

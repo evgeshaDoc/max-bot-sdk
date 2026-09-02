@@ -1,7 +1,7 @@
 import { Bot } from '@tlman/max-bot-sdk/bot';
 import type { Context } from '@tlman/max-bot-sdk/context';
 import { session } from '@tlman/max-bot-sdk/session';
-import type { SessionFlavor, StorageAdapter } from '@tlman/max-bot-sdk/session';
+import type { SessionFlavor, StorageAdapter } from '@tlman/max-bot-sdk/session-types';
 
 type CounterSession = { messages: number };
 type AppContext = Context & SessionFlavor<CounterSession>;

@@ -12,7 +12,8 @@ import type {
   UploadImageOptions,
   UploadVideoOptions,
 } from './core/helpers/upload';
-import type { ApiTransformer, Client } from './core/network/api/client';
+import type { Client } from './core/network/api/client-types';
+import type { ApiTransformer } from './core/network/api/transformer-types';
 import { MaxError, MaxErrorKind } from './core/network/api/error';
 import type { BotCommand } from './core/network/api/types/bot';
 import type { ChatAdmin, SenderAction } from './core/network/api/types/chat';

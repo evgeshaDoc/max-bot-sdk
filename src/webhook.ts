@@ -182,11 +182,3 @@ export function createWebhookHandler<ContextType extends Context>(
 ): WebhookHandler {
   return webhookCallback(bot, fetchWebhookAdapter, options);
 }
-
-export type {
-  WebhookAdapter,
-  WebhookAdapterRequest,
-  WebhookExchange,
-  WebhookHandler,
-  WebhookOptions,
-} from './webhook-types';

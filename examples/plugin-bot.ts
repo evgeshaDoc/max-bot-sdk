@@ -1,5 +1,5 @@
 import { Bot } from '@tlman/max-bot-sdk/bot';
-import type { ApiTransformer } from '@tlman/max-bot-sdk/core/network/api/client';
+import type { ApiTransformer } from '@tlman/max-bot-sdk/core/network/api/transformer-types';
 import type { Context } from '@tlman/max-bot-sdk/context';
 import type { NextFn } from '@tlman/max-bot-sdk/middleware';
 

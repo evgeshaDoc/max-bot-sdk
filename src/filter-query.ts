@@ -6,13 +6,6 @@ import type { Attachment } from './core/network/api/types/attachment';
 import { KnownUpdateTypes, type Update } from './core/network/api/types/update';
 import type { FilterQuery, FilterQueryUpdate } from './filter-query-types';
 
-export type {
-  AttachmentQueryType,
-  FilteredUpdateFor,
-  FilterQuery,
-  FilterQueryUpdate,
-} from './filter-query-types';
-
 const AttachmentQueryTypes = {
   image: true,
   video: true,

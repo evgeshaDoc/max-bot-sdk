@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 
 import { type Api } from '../../api';
-import type { Client } from '../network/api/client';
+import type { Client } from '../network/api/client-types';
 import { MaxError, MaxErrorKind } from '../network/api/error';
 import { parseLosslessJson } from '../network/api/json';
 import type { Int64 } from '../network/api/types/int64';

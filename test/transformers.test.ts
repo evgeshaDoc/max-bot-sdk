@@ -2,12 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { Api } from '../src/api';
-import {
-  createClient,
-  type ApiTransformer,
-} from '../src/core/network/api/client';
+import { createClient } from '../src/core/network/api/client';
 import { MaxError, MaxErrorKind } from '../src/core/network/api/error';
 import { RawApi } from '../src/core/network/api/raw-api';
+import type { ApiTransformer } from '../src/core/network/api/transformer-types';
 
 test('transformers preserve onion order, own-property replacements, and trusted parsing', async () => {
   const order: string[] = [];

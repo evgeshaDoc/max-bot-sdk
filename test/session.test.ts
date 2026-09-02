@@ -8,8 +8,8 @@ import { Context } from '../src/context';
 import { createClient } from '../src/core/network/api/client';
 import type { MessageRemovedUpdate } from '../src/core/network/api/types/update';
 import type { Middleware, MiddlewareFn } from '../src/middleware';
-import type { SessionFlavor, SessionOptions, StorageAdapter } from '../src/session';
 import { session } from '../src/session';
+import type { SessionFlavor, SessionOptions, StorageAdapter } from '../src/session-types';
 import { createWebhookHandler } from '../src/webhook';
 
 type Counter = { value: number };

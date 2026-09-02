@@ -226,9 +226,3 @@ export function fastifyWebhookAdapter(
     },
   };
 }
-
-export type {
-  BufferedWebhookRequest,
-  ExpressWebhookResponse,
-  FastifyWebhookReply,
-} from './webhook-types';

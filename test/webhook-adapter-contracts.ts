@@ -2,12 +2,12 @@ import type { RequestHandler } from 'express';
 import type { RouteHandlerMethod } from 'fastify';
 
 import type { Bot } from '../src/bot';
-import type { WebhookAdapter } from '../src/webhook';
 import { webhookCallback } from '../src/webhook';
 import {
   expressWebhookAdapter,
   fastifyWebhookAdapter,
 } from '../src/webhook-adapters';
+import type { WebhookAdapter } from '../src/webhook-types';
 
 declare const bot: Bot;
 

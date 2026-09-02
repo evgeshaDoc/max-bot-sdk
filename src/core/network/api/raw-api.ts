@@ -1,4 +1,4 @@
-import type { Client } from './client';
+import type { Client } from './client-types';
 import { BotsApi } from './modules/bots/api';
 import { ChatsApi } from './modules/chats/api';
 import { MessagesApi } from './modules/messages/api';

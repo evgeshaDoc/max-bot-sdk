@@ -322,9 +322,3 @@ export async function serveWebhook<ContextType extends Context>(
   }
   return createNodeServer(bot, options, validated);
 }
-
-export type {
-  WebhookServer,
-  WebhookServerOptions,
-  WebhookServerRuntime,
-} from './webhook-types';

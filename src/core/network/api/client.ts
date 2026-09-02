@@ -27,23 +27,6 @@ import type {
   TransformableRequestOptions,
 } from './transformer-types';
 
-export type {
-  ApiCallMetadata,
-  ApiCallNext,
-  ApiTransformer,
-  ClientResponse,
-  HttpMethod,
-  QueryValue,
-  TransformableRequestOptions,
-} from './transformer-types';
-export type {
-  Client,
-  ClientCallOptions,
-  ClientOptions,
-  RawRequestOptions,
-  RequestOptions,
-} from './client-types';
-
 const DEFAULT_BASE_URL = 'https://platform-api2.max.ru';
 const DEFAULT_TIMEOUT_MS = 10_000;
 

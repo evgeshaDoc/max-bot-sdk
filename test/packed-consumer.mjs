@@ -94,13 +94,13 @@ assert.equal(typeof Upload, 'function');
 
   const typeConsumer = `
 import { Bot } from '${packageName}/bot';
-import type { ApiTransformer } from '${packageName}/core/network/api/client';
+import type { ApiTransformer } from '${packageName}/core/network/api/transformer-types';
 import { Context } from '${packageName}/context';
 import { createButton } from '${packageName}/core/helpers/buttons';
-import type { FilterQuery } from '${packageName}/filter-query';
+import type { FilterQuery } from '${packageName}/filter-query-types';
 import type { MiddlewareFn } from '${packageName}/middleware';
 import { session } from '${packageName}/session';
-import type { SessionFlavor, StorageAdapter } from '${packageName}/session';
+import type { SessionFlavor, StorageAdapter } from '${packageName}/session-types';
 import { nodeHttpWebhookAdapter } from '${packageName}/webhook-adapters';
 import { serveWebhook } from '${packageName}/webhook-server';
 import type { Int64 } from '${packageName}/core/network/api/types/int64';

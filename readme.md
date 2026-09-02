@@ -54,7 +54,7 @@ await bot.start();
 
 ```ts
 import { session } from '@tlman/max-bot-sdk/session';
-import type { SessionFlavor } from '@tlman/max-bot-sdk/session';
+import type { SessionFlavor } from '@tlman/max-bot-sdk/session-types';
 ```
 
 Session middleware требует явные `storage`, `initial` и `getSessionKey`. Один instance

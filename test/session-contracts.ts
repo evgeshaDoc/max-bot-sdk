@@ -4,7 +4,7 @@ import type {
   SessionFlavor,
   SessionOptions,
   StorageAdapter,
-} from '../src/session';
+} from '../src/session-types';
 import { session } from '../src/session';
 
 type CounterSession = { count: number };

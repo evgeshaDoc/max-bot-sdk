@@ -1,6 +1,6 @@
 import type { Rec, URec } from '@tsofist/stem';
 
-import type { HttpMethod } from './client';
+import type { HttpMethod } from './transformer-types';
 import { assertInt64 } from './types/int64';
 import { KnownUpdateTypes } from './types/update';
 import type { WireDescriptor } from './wire-descriptors';

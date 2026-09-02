@@ -1,5 +1,6 @@
-import type { Client, HttpMethod, RequestOptions } from './client';
+import type { Client, RequestOptions } from './client-types';
 import { MaxError, MaxErrorKind } from './error';
+import type { HttpMethod } from './transformer-types';
 
 export class BaseApi {
   private readonly transportClient: Client;

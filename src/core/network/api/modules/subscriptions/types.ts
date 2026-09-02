@@ -1,7 +1,7 @@
 import type { ActionResponse } from '../../types/common';
 import type { Int64 } from '../../types/int64';
 import type { ParsedUpdate, UpdateType } from '../../types/update';
-import type { RequestOptions } from '../../client';
+import type { RequestOptions } from '../../client-types';
 import type { FlattenReq } from '../types';
 
 /** Active MAX webhook subscription. */

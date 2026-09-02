@@ -1,7 +1,7 @@
 import type { Api } from '../src/api';
 import type { Bot } from '../src/bot';
 import type { RawApi } from '../src/core/network/api/raw-api';
-import type { ApiTransformer } from '../src/core/network/api/client';
+import type { ApiTransformer } from '../src/core/network/api/transformer-types';
 import { createWebhookHandler } from '../src/webhook';
 
 declare const api: Api;
