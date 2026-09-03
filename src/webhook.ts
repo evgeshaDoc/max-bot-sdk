@@ -17,7 +17,7 @@ const SECRET_PATTERN = /^[A-Za-z0-9_-]{5,256}$/;
 const utf8Encoder = new TextEncoder();
 
 type ValidatedWebhookOptions = {
-  readonly secret: string | undefined;
+  readonly secret: string | false;
   readonly maxBodyBytes: number;
 };
 
@@ -42,8 +42,9 @@ function secretsMatch(actual: string | null, expected: string): boolean {
 }
 
 function validateWebhookOptions(options: WebhookOptions): ValidatedWebhookOptions {
-  if (options.secret !== undefined && !SECRET_PATTERN.test(options.secret)) {
-    throw new TypeError('MAX webhook secret must contain 5-256 URL-safe characters');
+  if (options.secret !== false
+    && (typeof options.secret !== 'string' || !SECRET_PATTERN.test(options.secret))) {
+    throw new TypeError('MAX webhook secret must contain 5-256 URL-safe characters; use false only with external authentication');
   }
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) {
@@ -82,6 +83,13 @@ async function readFetchBody(request: Request, maxBytes: number): Promise<Uint8A
   return body;
 }
 
+/** Cancels unconsumed ingress without delaying its rejection response. */
+export function cancelUnreadFetchBody(request: Request, response: Response): void {
+  if (!request.body || request.bodyUsed || request.body.locked) return;
+  response.headers.set('connection', 'close');
+  request.body.cancel().catch(() => undefined);
+}
+
 function fetchWebhookAdapter(request: Request) {
   return {
     request: {
@@ -93,6 +101,7 @@ function fetchWebhookAdapter(request: Request) {
       },
     },
     respond(response: Response) {
+      cancelUnreadFetchBody(request, response);
       return response;
     },
   };
@@ -106,7 +115,7 @@ function createWebhookProcessor<ContextType extends Context>(
     if (request.method !== 'POST') {
       return new Response(null, { headers: { allow: 'POST' }, status: 405 });
     }
-    if (options.secret !== undefined && !secretsMatch(request.secret, options.secret)) {
+    if (options.secret !== false && !secretsMatch(request.secret, options.secret)) {
       return new Response(null, { status: 401 });
     }
     if (request.contentLength !== undefined

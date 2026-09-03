@@ -194,3 +194,22 @@ test('outbound descriptors serialize int64 bare and preserve digit-like text', a
   assert.match(requestBody, /"contact_id":9223372036854775807/);
   assert.match(requestBody, /"direct_user_id":null/);
 });
+
+test('required update and polling root fields must be own properties', () => {
+  for (const raw of [
+    '{"__proto__":{"update_type":"future_event"}}',
+    '{"__proto__":{"update_type":"message_removed"},"timestamp":1,"message_id":"m","chat_id":2,"user_id":3}',
+  ]) {
+    assert.throws(() => parseUpdate(raw), MaxUpdateParseError);
+    assert.throws(() => parseUpdatesResponse(`{"updates":[${raw}],"marker":null}`), MaxUpdateParseError);
+  }
+  for (const raw of [
+    '{"__proto__":{"updates":[]},"marker":null}',
+    '{"updates":[],"__proto__":{"marker":null}}',
+    '{"updates":[],"__proto__":{"marker":1}}',
+  ]) assert.throws(() => parseUpdatesResponse(raw), MaxUpdateParseError);
+  assert.deepEqual(
+    parseUpdate('{"update_type":"future_event","__proto__":{"update_type":"message_removed"}}'),
+    { kind: 'unknown', updateType: 'future_event' },
+  );
+});

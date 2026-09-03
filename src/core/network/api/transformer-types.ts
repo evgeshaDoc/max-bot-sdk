@@ -36,7 +36,11 @@ export type ApiCallNext = (
   replacement?: Readonly<Partial<TransformableRequestOptions>>,
 ) => Promise<ClientResponse>;
 
-/** Observes or transforms one API call before the trusted transport terminal. */
+/**
+ * Observes or transforms one API call before the trusted transport terminal.
+ * Thrown objects retain identity and receive method/path/ambiguousOutcome when writable.
+ * Primitive or frozen throws cannot carry these details; avoid them for mutation failures.
+ */
 export type ApiTransformer = (
   next: ApiCallNext,
   call: ApiCallMetadata,

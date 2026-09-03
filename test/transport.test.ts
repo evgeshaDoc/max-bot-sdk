@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { once } from 'node:events';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Readable } from 'node:stream';
 import type { AddressInfo } from 'node:net';
 import { createServer } from 'node:http';
 import test from 'node:test';
@@ -9,6 +14,107 @@ import { MaxError, MaxErrorKind } from '../src/core/network/api/error';
 import { RawApi } from '../src/core/network/api/raw-api';
 
 type Mode = 'bot' | 'empty' | 'invalid' | 'error400' | 'error500' | 'redirect' | 'slow';
+
+test('authenticated calls reject absolute routes and URL parser tricks before fetch', async () => {
+  let requests = 0;
+  const client = createClient('secret', {
+    baseUrl: 'https://api.test/base',
+    fetch: async () => { requests += 1; return new Response('{}'); },
+  });
+  for (const path of [
+    'https://attacker.invalid/collect', 'https://api.test/collect', '//attacker.invalid',
+    '//api.test/collect', '\\\\attacker.invalid', '/\\attacker.invalid',
+    ' https://attacker.invalid', 'https:\\attacker.invalid', 'ht\ntps://attacker.invalid',
+  ]) {
+    await assert.rejects(client.call({ path, options: {} }), (error) => {
+      assert.ok(error instanceof MaxError);
+      assert.equal(error.kind, MaxErrorKind.Protocol);
+      assert.equal(error.ambiguousOutcome, false);
+      return true;
+    });
+  }
+  assert.equal(requests, 0);
+  await client.call({ path: '/custom', options: {} });
+  assert.equal(requests, 1);
+});
+
+test('uploads do not open paths before URL retrieval and close supplied streams on failure', async (context) => {
+  const directory = await fs.promises.mkdtemp(join(tmpdir(), 'max-upload-'));
+  const file = join(directory, 'payload.txt');
+  await fs.promises.writeFile(file, 'payload');
+  const opened: fs.ReadStream[] = [];
+  const { createReadStream } = fs;
+  context.mock.method(fs, 'createReadStream', (...args: Parameters<typeof fs.createReadStream>) => {
+    const stream = createReadStream(...args);
+    opened.push(stream);
+    return stream;
+  });
+  context.after(async () => {
+    for (const stream of opened) stream.destroy();
+    await fs.promises.rm(directory, { recursive: true, force: true });
+  });
+  const api = new Api(createClient('token', {
+    fetch: async () => new Response('{}', { status: 500 }),
+  }));
+  for (let index = 0; index < 3; index += 1) {
+    await assert.rejects(api.upload.file({ source: file }), hasKind(MaxErrorKind.Http));
+  }
+  assert.equal(opened.length, 0);
+  const supplied = fs.createReadStream(file);
+  await once(supplied, 'open');
+  await assert.rejects(api.upload.file({ source: supplied }), hasKind(MaxErrorKind.Http));
+  assert.equal(supplied.destroyed, true);
+});
+
+test('uploads close streams after success and an aborted upload request', async (context) => {
+  const directory = await fs.promises.mkdtemp(join(tmpdir(), 'max-upload-'));
+  const file = join(directory, 'payload.txt');
+  await fs.promises.writeFile(file, 'payload');
+  context.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+  for (const fail of [false, true]) {
+    const source = fs.createReadStream(file);
+    await once(source, 'open');
+    context.after(() => source.destroy());
+    const api = new Api(createClient('token', {
+      fetch: async (url, init) => {
+        if (String(url).includes('/uploads?')) return new Response('{"url":"https://upload.test"}');
+        if (fail) {
+          await new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          });
+        }
+        for await (const chunk of init?.body as unknown as Readable) assert.ok(chunk.length > 0);
+        return new Response('{"token":"uploaded"}');
+      },
+    }));
+    const pending = api.upload.file({ source, timeout: 10 });
+    if (fail) await assert.rejects(pending, hasKind(MaxErrorKind.Timeout));
+    else assert.equal((await pending).token, 'uploaded');
+    assert.equal(source.destroyed, true);
+  }
+});
+
+test('automatic upload URLs require credential-free absolute HTTP(S) destinations', async () => {
+  for (const url of [
+    'data:text/plain,payload', 'file:///tmp/upload', '/relative',
+    'https://user:password@upload.test', 'https://upload.test/#fragment',
+  ]) {
+    let requests = 0;
+    const api = new Api(createClient('token', {
+      fetch: async () => {
+        requests += 1;
+        return new Response(requests === 1 ? JSON.stringify({ url }) : '{"token":"uploaded"}');
+      },
+    }));
+    await assert.rejects(api.upload.file({ source: Buffer.from('private') }), (error) => {
+      assert.ok(error instanceof MaxError);
+      assert.equal(error.kind, MaxErrorKind.Protocol);
+      assert.equal(error.ambiguousOutcome, false);
+      return true;
+    });
+    assert.equal(requests, 1);
+  }
+});
 
 test('public Client.call preserves custom wire descriptors, parser, and injected fetch', async () => {
   const requests: Array<{ readonly url: string; readonly init?: RequestInit }> = [];

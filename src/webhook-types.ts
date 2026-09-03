@@ -2,8 +2,8 @@ import type { PromiseMay, Rec } from '@tsofist/stem';
 
 /** Webhook request settings shared by every ingress adapter. */
 export interface WebhookOptions {
-  /** Expected value of `X-Max-Bot-Api-Secret`. Omit to skip SDK-level verification. */
-  readonly secret?: string;
+  /** Expected secret; missing configuration throws. Use `false` only with external auth. */
+  readonly secret?: string | false;
 
   /** Maximum accepted raw request-body size in bytes. @default 1048576 */
   readonly maxBodyBytes?: number;

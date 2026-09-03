@@ -7,6 +7,55 @@ import { MaxError, MaxErrorKind } from '../src/core/network/api/error';
 import { RawApi } from '../src/core/network/api/raw-api';
 import type { ApiTransformer } from '../src/core/network/api/transformer-types';
 
+test('transformer errors preserve identity and final request ambiguity', async () => {
+  for (const method of ['POST', 'GET'] as const) {
+    for (const outcome of ['before', 'success', 'network', '400', '500'] as const) {
+      for (const original of [new Error('transformer'), new MaxError('transformer', { kind: MaxErrorKind.Protocol })]) {
+        let requests = 0;
+        const client = createClient('token', {
+          fetch: async () => {
+            requests += 1;
+            if (outcome === 'network') throw new Error('network');
+            return new Response('{}', { status: Number(outcome) || 200 });
+          },
+        });
+        client.use(async (next) => {
+          if (outcome !== 'before') {
+            try { await next(); } catch { /* replace the downstream failure */ }
+          }
+          throw original;
+        });
+        await assert.rejects(client.call({ path: 'custom', options: { method } }), (error) => {
+          assert.equal(error, original);
+          assert.equal(Reflect.get(original, 'method'), method);
+          assert.equal(Reflect.get(original, 'path'), 'custom');
+          assert.equal(
+            Reflect.get(original, 'ambiguousOutcome'),
+            method === 'POST' && outcome !== 'before' && outcome !== '400',
+          );
+          return true;
+        });
+        assert.equal(requests, outcome === 'before' ? 0 : 1);
+      }
+    }
+  }
+});
+
+test('primitive and frozen transformer failures retain identity when metadata cannot be attached', async () => {
+  for (const original of [undefined, null, 'failure', 42, Object.freeze(new Error('frozen'))]) {
+    const client = createClient('token', { fetch: async () => new Response('{}') });
+    client.use(async (next) => {
+      await next();
+      // eslint-disable-next-line @typescript-eslint/no-throw-literal -- Test primitive throws.
+      throw original;
+    });
+    await assert.rejects(
+      client.call({ path: 'custom', options: { method: 'POST' } }),
+      (error) => error === original,
+    );
+  }
+});
+
 test('transformers preserve onion order, own-property replacements, and trusted parsing', async () => {
   const order: string[] = [];
   let requests = 0;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { connect } from 'node:net';
 
 import { Bot } from '../dist/bot.js';
 import { session } from '../dist/session.js';
@@ -30,7 +31,7 @@ async function directHandlerSmoke() {
     hostname: '127.0.0.1',
     port: 0,
     idleTimeout: 31,
-    fetch: createWebhookHandler(bot),
+    fetch: createWebhookHandler(bot, { secret: false }),
   });
 
   try {
@@ -76,6 +77,7 @@ async function standaloneServerSmoke() {
 
   const controller = new AbortController();
   const server = await serveWebhook(bot, {
+    secret: false,
     hostname: '127.0.0.1',
     path: '/max-hook',
     port: 0,
@@ -100,3 +102,57 @@ async function standaloneServerSmoke() {
 
 await directHandlerSmoke();
 await standaloneServerSmoke();
+
+// Opt-in runtime regression: Bun 1.3.14 delivers the status but ignores TCP close here.
+async function unreadSocketProbe() {
+  let dispatches = 0;
+  const bot = await initializedBot();
+  bot.use(() => { dispatches += 1; });
+  const server = await serveWebhook(bot, {
+    hostname: '127.0.0.1', port: 0,
+    runtime: process.env.BUN_WEBHOOK_SOCKET_PROBE === 'node' ? 'node' : 'bun',
+    secret: 'valid_secret', maxBodyBytes: 512,
+  });
+  const failures = [];
+  try {
+    for (const [method, path, secret, size, status] of [
+      ['POST', '/wrong', 'valid_secret', 100, 404],
+      ['PUT', '/webhook', 'valid_secret', 100, 405],
+      ['POST', '/webhook', 'wrong', 100, 401],
+      ['POST', '/webhook', 'valid_secret', 513, 413],
+    ]) {
+      const result = await new Promise((resolve, reject) => {
+        const chunks = [];
+        const socket = connect(Number(server.url.port), '127.0.0.1', () => {
+          socket.write(`${method} ${path} HTTP/1.1\r\nHost: ${server.url.host}\r\n`
+            + `X-Max-Bot-Api-Secret: ${secret}\r\nContent-Length: ${size}\r\n`
+            + 'Connection: keep-alive\r\n\r\nx');
+        });
+        let settled = false;
+        function finish(closed) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          socket.destroy();
+          resolve({ raw: Buffer.concat(chunks).toString(), closed });
+        }
+        const timeout = setTimeout(() => finish(false), 1_500);
+        socket.on('data', (chunk) => { chunks.push(chunk); });
+        socket.once('end', () => finish(true));
+        socket.once('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+      assert.match(result.raw, new RegExp(`^HTTP/1\\.1 ${status} `));
+      assert.equal(result.raw.slice(result.raw.indexOf('\r\n\r\n') + 4), '');
+      if (!result.closed) failures.push(`${status}: TCP connection remained open after 1500ms`);
+    }
+    assert.equal(dispatches, 0);
+  } finally {
+    await server.close();
+  }
+  assert.deepEqual(failures, []);
+}
+
+if (process.env.BUN_WEBHOOK_SOCKET_PROBE) await unreadSocketProbe();

@@ -10,7 +10,7 @@ import type {
   MessageCreatedUpdate,
   MessageRemovedUpdate,
 } from '../src/core/network/api/types/update';
-import type { MiddlewareFn, MiddlewareObj } from '../src/middleware';
+import type { MiddlewareFn, MiddlewareObj, NextFn } from '../src/middleware';
 
 const api: Api = undefined as never;
 const botInfo: BotInfo = {
@@ -111,6 +111,131 @@ test('Composer preserves duplicate-next and middleware error identity', async ()
     throw expected;
   });
   await assert.rejects(run(failing, createRemovedContext()), (error) => error === expected);
+});
+
+test('detached next keeps completion open and preserves synchronous and asynchronous failures', async () => {
+  for (const synchronous of [true, false]) {
+    const expected = new Error('detached downstream');
+    let release = (): void => undefined;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let settled = false;
+    const composer = new Composer<Context>(
+      (_context, next) => { next(); },
+      synchronous ? () => { throw expected; } : async () => { await barrier; throw expected; },
+    );
+    const completion = run(composer, createRemovedContext()).then(
+      () => { settled = true; },
+      (error: unknown) => { settled = true; return error; },
+    );
+    await new Promise<void>((resolve) => { setImmediate(resolve); });
+    if (!synchronous) assert.equal(settled, false);
+    release();
+    assert.equal(await completion, expected);
+  }
+});
+
+test('awaited next preserves caught errors and waits for children when its parent fails', async () => {
+  const expected = new Error('downstream');
+  const caught: unknown[] = [];
+  for (const downstream of [
+    () => { throw expected; },
+    async () => { await Promise.resolve(); throw expected; },
+  ]) {
+    const composer = new Composer<Context>(async (_context, next) => {
+      try { await next(); } catch (error) { caught.push(error); }
+    }, downstream);
+    await run(composer, createRemovedContext());
+  }
+  assert.deepEqual(caught, [expected, expected]);
+
+  let release = (): void => undefined;
+  const barrier = new Promise<void>((resolve) => { release = resolve; });
+  let settled = false;
+  const failing = new Composer<Context>((_context, next) => {
+    next();
+    throw expected;
+  }, async () => { await barrier; throw new Error('secondary downstream error'); });
+  const completion = run(failing, createRemovedContext()).catch((error: unknown) => {
+    settled = true;
+    return error;
+  });
+  await new Promise<void>((resolve) => { setImmediate(resolve); });
+  assert.equal(settled, false);
+  release();
+  assert.equal(await completion, expected);
+});
+
+test('single middleware rejects late next and detached duplicates never dispatch twice', async () => {
+  let lateNext: NextFn = async () => undefined;
+  let outerCalls = 0;
+  const composer = new Composer<Context>((_context, next) => { lateNext = next; });
+  await run(composer, createRemovedContext(), () => { outerCalls += 1; });
+  await assert.rejects(lateNext(), /next.*(finished|closed)/);
+  assert.equal(outerCalls, 0);
+
+  const duplicate = new Composer<Context>((_context, next) => {
+    next();
+    next();
+  }, () => { outerCalls += 1; });
+  await assert.rejects(run(duplicate, createRemovedContext()), /next.*already called/);
+  assert.equal(outerCalls, 1);
+});
+
+test('concat owns both middleware continuations and rejects synchronous reentrant next', async () => {
+  const expected = new Error('terminal');
+  const concat = Composer.concat<Context>(Composer.pass, (_context, next) => { next(); });
+  await assert.rejects(Promise.resolve(concat(createRemovedContext(), async () => {
+    await Promise.resolve();
+    throw expected;
+  })), (error) => error === expected);
+
+  let reenter: NextFn = async () => undefined;
+  const composer = new Composer<Context>((_context, next) => {
+    reenter = next;
+    return next();
+  }, () => reenter());
+  await assert.rejects(run(composer, createRemovedContext()), /next.*already called/);
+});
+
+test('detached next chains retain failure and completion through then, catch, and finally', async () => {
+  for (const chain of ['then', 'finally', 'rethrow', 'catch', 'post-then', 'post-finally']) {
+    const expected = new Error(chain);
+    let release = (): void => undefined;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let settled = false;
+    const composer = new Composer<Context>((_context, next) => {
+      if (chain === 'then') next().then(() => undefined);
+      if (chain === 'finally') next().finally(() => undefined);
+      if (chain === 'rethrow') next().catch((error: unknown) => { throw error; });
+      if (chain === 'catch') next().then(() => undefined).catch(() => undefined);
+      if (chain === 'post-then') next().then(() => { throw expected; });
+      if (chain === 'post-finally') next().finally(() => { throw expected; });
+    }, async () => {
+      await barrier;
+      if (!chain.startsWith('post-')) throw expected;
+    });
+    const completion = run(composer, createRemovedContext()).then(
+      () => { settled = true; },
+      (error: unknown) => { settled = true; return error; },
+    );
+    await new Promise<void>((resolve) => { setImmediate(resolve); });
+    assert.equal(settled, false);
+    release();
+    assert.equal(await completion, chain === 'catch' ? undefined : expected);
+    await new Promise<void>((resolve) => { setImmediate(resolve); });
+  }
+});
+
+test('synchronous middleware closes next before queued microtasks run', async () => {
+  let lateCall: Promise<void> | undefined;
+  let outerCalls = 0;
+  const composer = new Composer<Context>((_context, next) => {
+    queueMicrotask(() => { lateCall = next(); });
+  });
+  const completion = run(composer, createRemovedContext(), () => { outerCalls += 1; });
+  await assert.rejects(completion, /next.*finished/);
+  await assert.rejects(lateCall!, /next.*finished/);
+  assert.equal(outerCalls, 0);
 });
 
 test('filter remains an unregistered middleware builder', async () => {
@@ -223,6 +348,16 @@ test('errorBoundary preserves handler onion order when recovery continues', asyn
 
   await run(composer, createRemovedContext());
   assert.deepEqual(order, ['handler-before', 'outer', 'handler-after']);
+});
+
+test('errorBoundary recovery retains detached outer continuation failures', async () => {
+  const expected = new Error('outer');
+  const composer = new Composer<Context>();
+  composer.errorBoundary((_error, _context, next) => { next(); }, () => {
+    throw new Error('recoverable');
+  });
+  composer.use(async () => { await Promise.resolve(); throw expected; });
+  await assert.rejects(run(composer, createRemovedContext()), (error) => error === expected);
 });
 
 test('errorBoundary supports suppression, rethrow, late additions, and guarded next', async () => {

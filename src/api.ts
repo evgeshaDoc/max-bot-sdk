@@ -116,17 +116,18 @@ export class Api {
 
   /** Updates selected chat or channel metadata. */
   async editChatInfo(chatId: Int64, extra: EditChatExtra) {
-    return this.raw.chats.edit({ chat_id: chatId, ...extra });
+    return this.raw.chats.edit({ ...extra, chat_id: chatId });
   }
 
   /** Sends a message to a chat or channel. */
   async sendMessageToChat(chatId: Int64, text: string, extra: SendMessageExtra = {}) {
     const { message } = await this.raw.messages.send({
-      chat_id: chatId,
-      text,
       attachments: null,
       link: null,
       ...extra,
+      chat_id: chatId,
+      user_id: undefined,
+      text,
     });
     return message;
   }
@@ -134,11 +135,12 @@ export class Api {
   /** Sends a message to a user dialog. */
   async sendMessageToUser(userId: Int64, text: string, extra: SendMessageExtra = {}) {
     const { message } = await this.raw.messages.send({
-      user_id: userId,
-      text,
       attachments: null,
       link: null,
       ...extra,
+      user_id: userId,
+      chat_id: undefined,
+      text,
     });
     return message;
   }
@@ -146,9 +148,9 @@ export class Api {
   /** Returns messages from a chat or channel. */
   async getMessages(chatId: Int64, { message_ids, ...extra }: GetMessagesExtra = {}) {
     return this.raw.messages.get({
+      ...extra,
       chat_id: chatId,
       message_ids: message_ids?.join(','),
-      ...extra,
     });
   }
 
@@ -160,22 +162,22 @@ export class Api {
   /** Edits an existing message or channel post. */
   async editMessage(messageId: string, extra: EditMessageExtra = {}) {
     return this.raw.messages.edit({
-      message_id: messageId,
       text: null,
       attachments: null,
       link: null,
       ...extra,
+      message_id: messageId,
     });
   }
 
   /** Deletes a message or channel post. */
   async deleteMessage(messageId: string, extra: DeleteMessageExtra = {}) {
-    return this.raw.messages.delete({ message_id: messageId, ...extra });
+    return this.raw.messages.delete({ ...extra, message_id: messageId });
   }
 
   /** Sends a message edit or notification in response to a callback. */
   async answerOnCallback(callbackId: string, extra: AnswerOnCallbackExtra = {}) {
-    return this.raw.messages.answerOnCallback({ callback_id: callbackId, ...extra });
+    return this.raw.messages.answerOnCallback({ ...extra, callback_id: callbackId });
   }
 
   /** Returns the current bot's membership in a chat or channel. */
@@ -209,9 +211,9 @@ export class Api {
     { user_ids, ...extra }: GetChatMembersExtra = {},
   ) {
     return this.raw.chats.getChatMembers({
+      ...extra,
       chat_id: chatId,
       user_ids,
-      ...extra,
     });
   }
 
@@ -244,8 +246,8 @@ export class Api {
   ) {
     const updateTypes = typeof types === 'string' ? [types] : types;
     return this.raw.subscriptions.getUpdates({
-      types: updateTypes.length === 0 ? undefined : updateTypes,
       ...extra,
+      types: updateTypes.length === 0 ? undefined : updateTypes,
     });
   }
 
@@ -256,7 +258,7 @@ export class Api {
 
   /** Pins a message in a chat or channel. */
   async pinMessage(chatId: Int64, messageId: string, extra: PinMessageExtra = {}) {
-    return this.raw.chats.pinMessage({ chat_id: chatId, message_id: messageId, ...extra });
+    return this.raw.chats.pinMessage({ ...extra, chat_id: chatId, message_id: messageId });
   }
 
   /** Removes the pinned message from a chat or channel. */

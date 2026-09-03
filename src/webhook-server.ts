@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 
 import type { Bot } from './bot';
 import type { Context } from './context';
-import { createWebhookHandler, webhookCallback } from './webhook';
+import { cancelUnreadFetchBody, createWebhookHandler, webhookCallback } from './webhook';
 import { nodeHttpWebhookAdapter } from './webhook-adapters';
 import type {
   WebhookServer,
@@ -243,12 +243,16 @@ function createBunServer<ContextType extends Context>(
 
   async function handleRequest(request: Request): Promise<Response> {
     if (new URL(request.url).pathname !== validated.path) {
-      return new Response(null, { status: 404 });
+      const response = new Response(null, { status: 404 });
+      cancelUnreadFetchBody(request, response);
+      return response;
     }
     try {
       return await webhookHandler(request);
     } catch {
-      return new Response(null, { status: 500 });
+      const response = new Response(null, { status: 500 });
+      cancelUnreadFetchBody(request, response);
+      return response;
     }
   }
 

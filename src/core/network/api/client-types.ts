@@ -42,6 +42,7 @@ export interface RequestOptions {
 
 /** @public */
 export interface ClientCallOptions {
+  /** Relative MAX route; absolute and protocol-relative URLs are rejected. */
   readonly path: string;
   readonly options: RequestOptions;
 }

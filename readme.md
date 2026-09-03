@@ -12,6 +12,9 @@ npm install @tlman/max-bot-sdk
 import { Bot } from '@tlman/max-bot-sdk/bot';
 import { createWebhookHandler } from '@tlman/max-bot-sdk/webhook';
 
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
+
 const bot = new Bot(process.env.MAX_BOT_TOKEN!);
 
 bot.command('ping', (context) => context.reply('pong'));
@@ -21,10 +24,12 @@ await bot.initialize();
 Bun.serve({
   port: 3000,
   fetch: createWebhookHandler(bot, {
-    secret: process.env.MAX_WEBHOOK_SECRET,
+    secret,
   }),
 });
 ```
+
+Webhook-конфигурация без secret (включая `undefined` из env) завершается ошибкой до приёма запросов. `secret: false` допустим только при явной проверке подлинности во внешнем gateway. Для subscription и handler используйте один сохранённый secret: рекомендуем 32 случайных байта в hex (64 символа), созданные один раз через `randomBytes(32).toString('hex')`. SDK сохраняет MAX-совместимый формат 5–256 URL-safe символов; replay/dedupe остаётся ответственностью продукта.
 
 Webhook body должен попасть в SDK как исходные bytes: не ставьте JSON body parser перед `createWebhookHandler` или `parseUpdate`. Для Node HTTP, Express 5 и Fastify 5 используйте raw-body adapters; для SDK-owned local listener — `serveWebhook`. Конкретные настройки и reverse-proxy boundary описаны в [docs/02-listen-and-respond.md](docs/02-listen-and-respond.md).
 
@@ -33,7 +38,7 @@ Webhook body должен попасть в SDK как исходные bytes: �
 ```ts
 await bot.api.createSubscription({
   url: 'https://bot.example.com/max',
-  secret: process.env.MAX_WEBHOOK_SECRET,
+  secret,
   update_types: ['message_created', 'message_callback'],
 });
 ```
@@ -81,11 +86,19 @@ SDK сериализует такие значения обратно в JSON к
 
 Полный аудит MAX API находится в [docs/api-coverage.md](docs/api-coverage.md), происхождение форка — в [UPSTREAM.md](UPSTREAM.md), политика обновления — в [CHANGELOG.md](CHANGELOG.md).
 
+## Границы входных данных
+
+Автоматическая загрузка доверяет HTTP(S) destination, возвращённому настроенным MAX API ([контракт upload](https://dev.max.ru/docs-api/methods/POST/uploads)). Для дополнительной host/IP policy используйте собственный `fetch` или ограничения сетевого egress; встроенного host allowlist нет. `Client.request` сохраняет явную raw/pre-signed URL семантику.
+
+Transport читает response целиком в рамках timeout, без отдельного лимита размера. Прямой `parseUpdate` не ограничивает bytes/depth: вызывающая сторона должна ограничивать недоверенный raw input. Canonical webhook ограничивает body до 1 MiB по умолчанию.
+
 ## Требования и проверка
 
 - Node.js `>=18.18.0` или Bun `>=1.3.11`.
 - `npm test` — unit, endpoint table и реальный `node:http` transport.
 - `npm run test:pack` — установка tarball и запуск direct exports в Node и Bun.
 - `npm run lint && npm run typecheck && npm run build` — статические проверки.
+
+Release workflow требует заранее настроенный `max-sdk-release` environment с required reviewers; preflight отклоняет отсутствие approval policy. Ручной dispatch доступен пользователям с write-доступом к репозиторию.
 
 License: MIT.

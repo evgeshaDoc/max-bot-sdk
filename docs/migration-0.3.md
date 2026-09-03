@@ -17,6 +17,15 @@ Use chaining only when the next registration must be scoped inside the previous 
 `bot.use(bot.filter('message_created', handler))` remains supported because `filter`
 continues to build middleware without registering it.
 
+## Webhook authentication
+
+`createWebhookHandler`, `webhookCallback`, and `serveWebhook` now reject missing or
+`undefined` secrets during construction. Pass a stored MAX-compatible secret (5–256
+URL-safe characters), or explicitly use `secret: false` only when an external gateway
+already authenticates every request. An unset environment variable no longer disables auth.
+Prefer a fixed-length secret generated once from 32 random bytes, encoded as hex; use the
+same secret for the subscription and handler. Replay protection remains product-owned.
+
 ## Webhook bodies
 
 Pass the original `string`, `Uint8Array`, Node request stream, or framework raw buffer to

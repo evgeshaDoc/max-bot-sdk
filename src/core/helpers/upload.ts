@@ -19,6 +19,7 @@ type DefaultOptions = {
 };
 
 type UploadFromSourceOptions = {
+  /** Streams are consumed and destroyed on success or failure. */
   source: FileSource
 };
 
@@ -271,18 +272,36 @@ export class Upload {
 
   private async upload<Res>(
     type: UploadType,
-    file: UploadFile,
+    source: FileSource,
     options?: DefaultOptions,
     descriptor?: WireDescriptor,
   ): Promise<Res> {
-    const res = await this.api.raw.uploads.getUploadUrl({ type });
-    const { url: uploadUrl, token } = res;
-    const timeoutMs = options?.timeout ?? DEFAULT_UPLOAD_TIMEOUT;
-
-    if ('stream' in file) {
-      return this.uploadFromStream<Res>({ file, uploadUrl, token }, timeoutMs, descriptor);
+    let stream = source instanceof fs.ReadStream ? source : undefined;
+    try {
+      const { url: uploadUrl, token } = await this.api.raw.uploads.getUploadUrl({ type });
+      try {
+        const url = new URL(uploadUrl);
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) {
+          throw new Error('Invalid upload destination');
+        }
+      } catch {
+        throw new MaxError('MAX returned an invalid upload URL', {
+          kind: MaxErrorKind.Protocol,
+          method: 'POST',
+          path: 'upload',
+          ambiguousOutcome: false,
+        });
+      }
+      const file = await this.getStreamFromSource(source);
+      const timeoutMs = options?.timeout ?? DEFAULT_UPLOAD_TIMEOUT;
+      if ('stream' in file) {
+        stream = file.stream;
+        return await this.uploadFromStream<Res>({ file, uploadUrl, token }, timeoutMs, descriptor);
+      }
+      return await this.uploadFromBuffer<Res>({ file, uploadUrl }, timeoutMs, descriptor);
+    } finally {
+      stream?.destroy();
     }
-    return this.uploadFromBuffer<Res>({ file, uploadUrl }, timeoutMs, descriptor);
   }
 
   private async uploadFromStream<Res>({
@@ -328,37 +347,29 @@ export class Upload {
       return { url: source.url };
     }
 
-    const fileBlob = await this.getStreamFromSource(source.source);
-
     return this.upload<{
       photos: { [key: string]: { token: string } }
-    } | { token: string }>('image', fileBlob, { timeout });
+    } | { token: string }>('image', source.source, { timeout });
   }
 
   async video({ source, ...options }: UploadVideoOptions) {
-    const fileBlob = await this.getStreamFromSource(source);
-
     return this.upload<{
       id?: Int64,
       token: string,
-    }>('video', fileBlob, options, { id: true });
+    }>('video', source, options, { id: true });
   }
 
   async file({ source, ...options }: UploadFileOptions) {
-    const fileBlob = await this.getStreamFromSource(source);
-
     return this.upload<{
       id?: Int64,
       token: string,
-    }>('file', fileBlob, options, { id: true });
+    }>('file', source, options, { id: true });
   }
 
   async audio({ source, ...options }: UploadAudioOptions) {
-    const fileBlob = await this.getStreamFromSource(source);
-
     return this.upload<{
       id?: Int64,
       token: string,
-    }>('audio', fileBlob, options, { id: true });
+    }>('audio', source, options, { id: true });
   }
 }

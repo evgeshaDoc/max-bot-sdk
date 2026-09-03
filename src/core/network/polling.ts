@@ -56,6 +56,8 @@ export class Polling {
 
   private marker?: Int64;
 
+  private running = false;
+
   constructor(
     private readonly api: Api,
     private readonly allowedUpdates: readonly UpdateType[] = [],
@@ -66,6 +68,16 @@ export class Polling {
    * @param handleUpdate - Managed polling dispatch boundary.
    */
   async loop(handleUpdate: UpdateHandler): Promise<void> {
+    if (this.running) throw new Error('Polling is already running');
+    this.running = true;
+    try {
+      await this.runLoop(handleUpdate);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async runLoop(handleUpdate: UpdateHandler): Promise<void> {
     debug('Starting long polling');
 
     while (!this.abortController.signal.aborted) {

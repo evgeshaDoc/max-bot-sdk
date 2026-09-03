@@ -1,5 +1,6 @@
 import type { URec } from '@tsofist/stem';
 import { entriesOf } from '@tsofist/stem/lib/object/entries-of';
+import { hasOwn } from '@tsofist/stem/lib/object/has-own';
 
 import { MaxUpdateParseError } from './error';
 import { parseLosslessJson } from './json';
@@ -170,7 +171,8 @@ export function parseUpdatesResponse(rawBody: string): {
 } {
   try {
     const root = expectRecord(parseLosslessJson(rawBody));
-    if (!Array.isArray(root.updates)) throw new TypeError('Expected updates array');
+    if (!hasOwn(root, 'marker')) throw new TypeError('Expected marker');
+    if (!hasOwn(root, 'updates') || !Array.isArray(root.updates)) throw new TypeError('Expected updates array');
     for (const [key, value] of entriesOf(root)) {
       if (key !== 'updates' && key !== 'marker') normalizeWireValue(value);
     }
@@ -188,6 +190,7 @@ export function parseUpdatesResponse(rawBody: string): {
 
 function classifyUpdate(value: unknown): ParsedUpdate {
   const root = expectRecord(value);
+  if (!hasOwn(root, 'update_type')) throw new TypeError('Expected update type');
   const updateType = expectString(root.update_type);
   if (updateType.length === 0) throw new TypeError('Expected a non-empty update type');
   if (!knownUpdateTypes.has(updateType)) return { kind: 'unknown', updateType };

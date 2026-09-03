@@ -121,13 +121,22 @@ MAX присылает идентификаторы больше `Number.MAX_SAF
 любой уже разобранный object необратимо теряют точность; adapter вернёт для такого object
 пустой `500` и не вызовет bot middleware.
 
+Конфигурация обязана явно выбрать secret или `secret: false` для внешней проверки подлинности.
+Отсутствующий/`undefined` secret вызывает ошибку при создании handler/listener. Рекомендуется
+один раз создать и сохранить 32 случайных байта в hex (`randomBytes(32).toString('hex')`),
+передавая одинаковый secret в subscription и handler. Допустимый MAX-формат остаётся
+5–256 URL-safe символов; SDK не хранит replay/dedupe state.
+
 Fetch handler остаётся прямым вариантом для Bun, Hono, Elysia и других Web Fetch runtimes:
 
 ```typescript
 import { createWebhookHandler } from '@tlman/max-bot-sdk/webhook';
 
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
+
 const fetch = createWebhookHandler(bot, {
-  secret: process.env.MAX_WEBHOOK_SECRET,
+  secret,
   maxBodyBytes: 1_048_576,
 });
 
@@ -141,11 +150,14 @@ Bun.serve({ fetch, port: 3000 });
 ```typescript
 import { serveWebhook } from '@tlman/max-bot-sdk/webhook-server';
 
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
+
 const server = await serveWebhook(bot, {
   hostname: '127.0.0.1',
   path: '/webhook',
   port: 3000,
-  secret: process.env.MAX_WEBHOOK_SECRET,
+  secret,
 });
 
 console.log(`Local webhook listener: ${server.url}`);
@@ -170,8 +182,11 @@ import { createServer } from 'node:http';
 import { webhookCallback } from '@tlman/max-bot-sdk/webhook';
 import { nodeHttpWebhookAdapter } from '@tlman/max-bot-sdk/webhook-adapters';
 
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
+
 const callback = webhookCallback(bot, nodeHttpWebhookAdapter, {
-  secret: process.env.MAX_WEBHOOK_SECRET,
+  secret,
 });
 
 createServer(callback).listen(3000, '127.0.0.1');
@@ -186,6 +201,9 @@ import express from 'express';
 
 import { webhookCallback } from '@tlman/max-bot-sdk/webhook';
 import { expressWebhookAdapter } from '@tlman/max-bot-sdk/webhook-adapters';
+
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
 
 const app = express();
 const maxBodyBytes = 1_048_576;
@@ -202,7 +220,7 @@ app.post(
   '/webhook',
   express.raw({ type: 'application/json', limit: maxBodyBytes }),
   webhookCallback(bot, expressWebhookAdapter, {
-    secret: process.env.MAX_WEBHOOK_SECRET,
+    secret,
     maxBodyBytes,
   }),
   emptyBodyLimitError,
@@ -223,6 +241,9 @@ import Fastify from 'fastify';
 import { webhookCallback } from '@tlman/max-bot-sdk/webhook';
 import { fastifyWebhookAdapter } from '@tlman/max-bot-sdk/webhook-adapters';
 
+const secret = process.env.MAX_WEBHOOK_SECRET;
+if (!secret) throw new TypeError('MAX_WEBHOOK_SECRET is required');
+
 const botApp = Fastify();
 const maxBodyBytes = 1_048_576;
 
@@ -240,7 +261,7 @@ async function registerMaxWebhook(app: FastifyInstance): Promise<void> {
     (_request, body, done) => done(null, body),
   );
   app.post('/webhook', webhookCallback(bot, fastifyWebhookAdapter, {
-    secret: process.env.MAX_WEBHOOK_SECRET,
+    secret,
     maxBodyBytes,
   }));
 }
@@ -262,3 +283,13 @@ await botApp.listen({ host: '127.0.0.1', port: 3000 });
 фактический limit действует и для streaming ingress. Framework raw-parser limit должен быть не
 выше `maxBodyBytes`; route/plugin-scoped error handler обязан преобразовать parser limit error в
 пустой `413`, чтобы framework не раскрыл HTML/JSON детали до SDK processor-а.
+
+Fetch ingress отменяет непрочитанный body и запрашивает `Connection: close` при раннем отказе.
+Bun 1.3.14 возвращает `404`/`405`/`401`/`413`, но для неполного upload нативный `Bun.serve`
+может держать TCP-соединение до idle timeout даже после отмены body. Воспроизводимый
+probe: `BUN_WEBHOOK_SOCKET_PROBE=1 npm run test:webhook:bun`; он намеренно падает, если
+EOF не пришёл за 1,5 секунды. Это ограничение runtime, а не гарантия SDK об очистке сокета.
+Для listener с проверенной очисткой непрочитанного TCP input используйте
+`runtime: 'node'`: raw-socket regressions проходят в Node.js и Bun 1.3.14
+(`BUN_WEBHOOK_SOCKET_PROBE=node npm run test:webhook:bun`). Нормальная обработка
+и graceful drain сохраняются.

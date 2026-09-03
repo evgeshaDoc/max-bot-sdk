@@ -305,7 +305,21 @@ async function executeTransformerChain(
     return nextPromise;
   }
 
-  return dispatch(0, terminalInput.request);
+  try {
+    return await dispatch(0, terminalInput.request);
+  } catch (error) {
+    try {
+      // Frozen objects and primitive throws cannot carry metadata without losing identity.
+      Object.defineProperties(error, {
+        method: { value: terminalInput.specification.method, configurable: true, writable: true },
+        path: { value: terminalInput.specification.route, configurable: true, writable: true },
+        ambiguousOutcome: { value: mutationMayHaveApplied, configurable: true, writable: true },
+      });
+    } catch {
+      // Metadata must never replace the original failure.
+    }
+    throw error;
+  }
 }
 
 function mergeTransformableRequest(
@@ -327,13 +341,20 @@ function mergeTransformableRequest(
 async function executeTrustedCall(input: TrustedTerminalInput): Promise<ClientResponse> {
   const { method, route, contract } = input.specification;
   const requestTimeout = input.request.timeoutMs ?? input.defaultTimeoutMs;
-  let path: string;
+  let url: URL;
   try {
     validateTimeout(requestTimeout);
     validateWireValue(input.request.path, contract.path);
     validateWireValue(input.request.query, contract.query);
     validateWireValue(input.request.body, contract.body);
-    path = buildPath(route, input.request.path);
+    const path = buildPath(route, input.request.path);
+    url = new URL(path, ensureTrailingSlash(input.baseUrl));
+    if (/^[a-z][a-z\d+.-]*:|^[\\/]{2}|[\p{Cc}\s\\]/iu.test(path)
+      || url.origin !== new URL(input.baseUrl).origin) {
+      throw new MaxError('MAX API route must be relative to the configured origin', {
+        kind: MaxErrorKind.Protocol,
+      });
+    }
   } catch (error) {
     throw withRequestDetails(error, method, route, false);
   }
@@ -345,7 +366,6 @@ async function executeTrustedCall(input: TrustedTerminalInput): Promise<ClientRe
     });
   }
 
-  const url = new URL(path, ensureTrailingSlash(input.baseUrl));
   appendQuery(url, input.request.query);
   const controller = new AbortController();
   if (input.clientSignal?.aborted || input.request.signal?.aborted) {

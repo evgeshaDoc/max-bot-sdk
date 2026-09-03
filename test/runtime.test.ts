@@ -136,6 +136,75 @@ test('polling does not advance a mixed page after an escaped known failure', asy
   assert.deepEqual(markers, [undefined, undefined]);
 });
 
+test('detached middleware cannot acknowledge webhooks or advance polling before failure', async () => {
+  for (const transport of ['webhook', 'polling']) {
+    let release = (): void => undefined;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let settled = false;
+    const expected = new Error('detached handler');
+    const bot = new Bot('token', {
+      clientOptions: { fetch: async () => new Response(botInfo, { status: 200 }) },
+    });
+    await bot.initialize();
+    bot.use((_context, next) => { next(); });
+    bot.use(async () => { await barrier; throw expected; });
+    const markers: Array<Int64 | null | undefined> = [];
+    const api = {
+      async getUpdates(_types: unknown, options: GetUpdatesOptions) {
+        markers.push(options.marker);
+        if (markers.length > 1) throw new Error('premature polling page');
+        return { updates: [update], marker: '10' };
+      },
+    } as unknown as Api;
+    const polling = new Polling(api);
+    const task: Promise<void | Response> = transport === 'polling'
+      ? polling.loop(bot.dispatchUpdate.bind(bot))
+      : createWebhookHandler(bot, { secret: 'valid_secret' })(new Request('https://bot.test', {
+        method: 'POST',
+        headers: { 'x-max-bot-api-secret': 'valid_secret' },
+        body: '{"update_type":"message_removed","timestamp":1,"message_id":"m",'
+          + '"chat_id":2,"user_id":3}',
+      }));
+    const completion = task.then(
+      (result) => { settled = true; return result; },
+      (error: unknown) => { settled = true; return error; },
+    );
+    await new Promise<void>((resolve) => { setImmediate(resolve); });
+    assert.equal(settled, false);
+    assert.deepEqual(markers, transport === 'polling' ? [undefined] : []);
+    release();
+    const result = await completion;
+    if (transport === 'polling') {
+      assert.equal(result, expected);
+      markers.length = 0;
+      await polling.loop(async () => { polling.stop(); });
+      assert.deepEqual(markers, [undefined]);
+    } else {
+      assert.ok(result instanceof Response);
+      assert.equal(result.status, 500);
+    }
+  }
+});
+
+test('direct polling loops reject concurrent ownership before requesting a second page', async () => {
+  let requests = 0;
+  let release = (): void => undefined;
+  const barrier = new Promise<void>((resolve) => { release = resolve; });
+  const api = {
+    async getUpdates() {
+      requests += 1;
+      await barrier;
+      return { updates: [update], marker: '10' };
+    },
+  } as unknown as Api;
+  const polling = new Polling(api);
+  const first = polling.loop(async () => { polling.stop(); });
+  const rejected = assert.rejects(polling.loop(async () => undefined), /already running/);
+  release();
+  await Promise.all([first, rejected]);
+  assert.equal(requests, 1);
+});
+
 test('webhook handler is directly usable as a Web Fetch transport', async () => {
   const fetchMock: typeof fetch = async () => new Response(botInfo, { status: 200 });
   const bot = new Bot('token', { clientOptions: { fetch: fetchMock } });

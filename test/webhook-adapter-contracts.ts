@@ -11,8 +11,12 @@ import type { WebhookAdapter } from '../src/webhook-types';
 
 declare const bot: Bot;
 
-const expressHandler: RequestHandler = webhookCallback(bot, expressWebhookAdapter);
-const fastifyHandler: RouteHandlerMethod = webhookCallback(bot, fastifyWebhookAdapter);
+const expressHandler: RequestHandler = webhookCallback(bot, expressWebhookAdapter, {
+  secret: false,
+});
+const fastifyHandler: RouteHandlerMethod = webhookCallback(bot, fastifyWebhookAdapter, {
+  secret: false,
+});
 
 type CustomRequest = {
   readonly method: string;
@@ -39,7 +43,7 @@ CustomResponse
   },
 });
 
-const customHandler = webhookCallback(bot, customAdapter);
+const customHandler = webhookCallback(bot, customAdapter, { secret: false });
 const customResult: Promise<CustomResponse> = customHandler(
   { method: 'POST', raw: new Uint8Array() },
   { status: 0 },

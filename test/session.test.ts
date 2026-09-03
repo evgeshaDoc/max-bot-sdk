@@ -93,6 +93,45 @@ test('same-key updates serialize without lost writes and other keys stay concurr
   assert.deepEqual(entered.sort(), ['three', 'two']);
 });
 
+test('detached next retains the session lock and never writes after downstream failure', async () => {
+  const writes: number[] = [];
+  const entered: string[] = [];
+  const expected = new Error('detached session handler');
+  let release = (): void => undefined;
+  const barrier = new Promise<void>((resolve) => { release = resolve; });
+  const composer = new Composer<SessionContext>(
+    session<TestContext, Counter>({
+      storage: {
+        read: () => ({ value: 0 }),
+        write(_key, value) { writes.push(value.value); },
+        delete() {},
+      },
+      getSessionKey: () => 'shared',
+      initial: () => ({ value: 0 }),
+    }),
+    (_context, next) => { next(); },
+    async (context) => {
+      entered.push(context.key);
+      if (context.key === 'first') {
+        await barrier;
+        context.session.value = 1;
+        throw expected;
+      }
+      context.session.value = 2;
+    },
+  );
+  const first = Promise.resolve(composer.middleware()(createContext('first'), async () => undefined))
+    .catch((error: unknown) => error);
+  const second = composer.middleware()(createContext('second'), async () => undefined);
+  await new Promise<void>((resolve) => { setImmediate(resolve); });
+  assert.deepEqual(entered, ['first']);
+  assert.deepEqual(writes, []);
+  release();
+  assert.equal(await first, expected);
+  await second;
+  assert.deepEqual(writes, [2]);
+});
+
 test('resolver completion determines queue order and invalid keys fail before storage', async () => {
   const order: string[] = [];
   const pending = new Map<string, Release>();

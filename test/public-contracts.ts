@@ -11,7 +11,7 @@ declare const bunServe: (options: {
   readonly fetch: (request: Request) => Response | Promise<Response>;
 }) => unknown;
 
-bunServe({ fetch: createWebhookHandler(bot) });
+bunServe({ fetch: createWebhookHandler(bot, { secret: false }) });
 
 const transformer: ApiTransformer = async (next, call) => {
   Object.keys(call.request);

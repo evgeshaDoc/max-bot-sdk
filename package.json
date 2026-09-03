@@ -53,7 +53,7 @@
     "eslint-config-airbnb-typescript": "^18.0.0",
     "eslint-plugin-import": "^2.25.2",
     "express": "5.2.1",
-    "fastify": "5.11.3",
+    "fastify": "5.12.1",
     "typescript": "^5.4.2"
   },
   "dependencies": {

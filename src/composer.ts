@@ -190,7 +190,11 @@ export class Composer<ContextType extends Context> implements MiddlewareObj<Cont
         caughtError = error;
       }
       if (caught) {
-        await handler(caughtError, context, createGuardedNext(next));
+        await executeMiddleware(
+          (innerContext, continuation) => handler(caughtError, innerContext, continuation),
+          context,
+          next,
+        );
         return;
       }
       if (continueOuter) await next();
@@ -222,16 +226,9 @@ export class Composer<ContextType extends Context> implements MiddlewareObj<Cont
     first: MiddlewareFn<NestedContext>,
     andThen: MiddlewareFn<NestedContext>,
   ): MiddlewareFn<NestedContext> {
-    return async (context, next) => {
-      let nextCalled = false;
-      await first(context, async () => {
-        if (nextCalled) {
-          throw new Error('`next` already called before!');
-        }
-        nextCalled = true;
-        await andThen(context, next);
-      });
-    };
+    return (context, next) => executeMiddleware(first, context, () => {
+      return executeMiddleware(andThen, context, next);
+    });
   }
 
   static pass<NestedContext extends Context>(
@@ -250,7 +247,107 @@ export class Composer<ContextType extends Context> implements MiddlewareObj<Cont
     if (middlewares.length === 0) {
       return Composer.pass;
     }
-    return middlewares.map(Composer.flatten).reduce(Composer.concat);
+    return middlewares.map(Composer.flatten).reduceRight(
+      (continuation, middleware) => (context, next) => executeMiddleware(
+        middleware,
+        context,
+        () => continuation(context, next),
+      ),
+      Composer.pass,
+    );
+  }
+}
+
+async function executeMiddleware<ContextType extends Context>(
+  middleware: MiddlewareFn<ContextType>,
+  context: ContextType,
+  next: () => ReturnType<MiddlewareFn<ContextType>>,
+): Promise<void> {
+  let active = true;
+  let nextCalled = false;
+  let downstream: MiddlewareNextPromise<void> | undefined;
+  let violation: Error | undefined;
+  let failed = false;
+  let failure: unknown;
+  try {
+    const result = middleware(context, () => {
+      if (!active || nextCalled) {
+        violation = new Error(nextCalled
+          ? '`next` already called before!'
+          : '`next` called after middleware finished!');
+        const rejected = Promise.reject(violation);
+        rejected.catch(() => undefined);
+        return rejected;
+      }
+      nextCalled = true;
+      downstream = new MiddlewareNextPromise<void>((resolve, reject) => {
+        Promise.resolve(next()).then(() => resolve(), reject);
+      });
+      // Observe detached failures without marking them as caught by middleware.
+      Promise.prototype.then.call(downstream, undefined, () => undefined);
+      return downstream;
+    });
+    active = result !== null
+      && (typeof result === 'object' || typeof result === 'function')
+      && 'then' in result && typeof result.then === 'function';
+    await result;
+  } catch (error) {
+    failed = true;
+    failure = error;
+  } finally {
+    active = false;
+  }
+  if (downstream) {
+    try {
+      await downstream.complete();
+    } catch (error) {
+      if (!failed) {
+        failed = true;
+        failure = error;
+      }
+    }
+  }
+  if (failed) throw failure;
+  if (violation) throw violation;
+}
+
+// Await uses then on subclasses: its rejection handler consumes that branch, just like catch.
+class MiddlewareNextPromise<Value> extends Promise<Value> {
+  private readonly continuations: Array<MiddlewareNextPromise<unknown>> = [];
+
+  then<Result = Value, RejectedResult = never>(
+    onFulfilled?: ((value: Value) => Result | PromiseLike<Result>) | null,
+    onRejected?: ((reason: unknown) => RejectedResult | PromiseLike<RejectedResult>) | null,
+  ): Promise<Result | RejectedResult> {
+    const child = super.then(
+      onFulfilled,
+      onRejected,
+    ) as MiddlewareNextPromise<Result | RejectedResult>;
+    this.continuations.push(child);
+    Promise.prototype.then.call(child, undefined, () => undefined);
+    return child;
+  }
+
+  async complete(): Promise<void> {
+    let failed = false;
+    let failure: unknown;
+    await new Promise<void>((resolve) => {
+      super.then(() => resolve(), (error: unknown) => {
+        failed = true;
+        failure = error;
+        resolve();
+      });
+    });
+    if (this.continuations.length) failed = false;
+    for (const continuation of this.continuations) {
+      try {
+        await continuation.complete();
+      } catch (error) {
+        if (!failed) failure = error;
+        failed = true;
+      }
+    }
+    if (failed) throw failure;
   }
 }
 
@@ -325,14 +422,5 @@ function createContinuation(onCall: () => void): NextFn {
     if (called) throw new Error('`next` already called before!');
     called = true;
     onCall();
-  };
-}
-
-function createGuardedNext(next: NextFn): NextFn {
-  let called = false;
-  return async function continueMiddleware(): Promise<void> {
-    if (called) throw new Error('`next` already called before!');
-    called = true;
-    await next();
   };
 }

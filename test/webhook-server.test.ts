@@ -136,6 +136,7 @@ test('Node server binds port zero and applies exact routing through the canonica
 test('Node wrong-path responses close unread bodies without sacrificing complete keep-alive reuse', async () => {
   const bot = await createInitializedBot();
   const server = await serveWebhook(bot, {
+    secret: false,
     hostname: '127.0.0.1',
     path: '/max-hook',
     port: 0,
@@ -186,7 +187,10 @@ test('Node outer failures use the adapter for an exact 500 and unread-body clean
 
   const bot = await createInitializedBot();
   const server = await serveWebhook(bot, {
-    hostname: '127.0.0.1', port: 0, runtime: 'node',
+    secret: false,
+    hostname: '127.0.0.1',
+    port: 0,
+    runtime: 'node',
   });
   Reflect.set(nodeHttp, 'createServer', nativeCreateServer);
   const rawRequest = `GET /webhook HTTP/1.1\r\nHost: ${server.url.host}\r\n`
@@ -218,7 +222,10 @@ test('Node and Bun listeners configure at least the MAX delivery timeout window'
 
   try {
     const server = await serveWebhook(bot, {
-      hostname: '127.0.0.1', port: 0, runtime: 'node',
+      secret: false,
+      hostname: '127.0.0.1',
+      port: 0,
+      runtime: 'node',
     });
     await server.close();
   } finally {
@@ -238,7 +245,7 @@ test('Node and Bun listeners configure at least the MAX delivery timeout window'
     },
   });
   try {
-    const server = await serveWebhook(bot, { runtime: 'bun' });
+    const server = await serveWebhook(bot, { secret: false, runtime: 'bun' });
     await server.close();
   } finally {
     if (bunDescriptor) Object.defineProperty(globalThis, 'Bun', bunDescriptor);
@@ -270,6 +277,7 @@ test('Node server rejects invalid configuration and listen conflicts without ret
 
   for (const options of invalidOptions) {
     await assert.rejects(serveWebhook(bot, {
+      secret: false,
       ...options,
       hostname: options.hostname ?? '127.0.0.1',
       port: options.port ?? 0,
@@ -280,6 +288,7 @@ test('Node server rejects invalid configuration and listen conflicts without ret
   const occupied = await listenOccupiedPort();
   try {
     await assert.rejects(serveWebhook(bot, {
+      secret: false,
       hostname: '127.0.0.1',
       port: occupied.port,
       runtime: 'node',
@@ -303,6 +312,7 @@ test('Node close drains active work and remains idempotent under explicit and si
   });
   const controller = new AbortController();
   const server = await serveWebhook(bot, {
+    secret: false,
     hostname: '127.0.0.1',
     port: 0,
     runtime: 'node',
@@ -336,7 +346,10 @@ test('Node close waits for middleware after the client disconnects', async () =>
     await requestReleased;
   });
   const server = await serveWebhook(bot, {
-    hostname: '127.0.0.1', port: 0, runtime: 'node',
+    secret: false,
+    hostname: '127.0.0.1',
+    port: 0,
+    runtime: 'node',
   });
   const request = createRequest(server.url, { method: 'POST' });
   request.once('error', () => undefined);
@@ -373,7 +386,10 @@ test('Node close also drains a handler accepted after shutdown observes zero act
     await requestReleased;
   });
   const server = await serveWebhook(bot, {
-    hostname: '127.0.0.1', port: 0, runtime: 'node',
+    secret: false,
+    hostname: '127.0.0.1',
+    port: 0,
+    runtime: 'node',
   });
   Reflect.set(nodeHttp, 'createServer', nativeCreateServer);
   assert.ok(nativeServer);
@@ -426,7 +442,10 @@ test('Node close waits for native shutdown after handlers drain first', async ()
     await requestReleased;
   });
   const server = await serveWebhook(bot, {
-    hostname: '127.0.0.1', port: 0, runtime: 'node',
+    secret: false,
+    hostname: '127.0.0.1',
+    port: 0,
+    runtime: 'node',
   });
   Reflect.set(nodeHttp, 'createServer', nativeCreateServer);
   assert.ok(nativeServer);
@@ -464,6 +483,7 @@ test('Node close waits for native shutdown after handlers drain first', async ()
 test('Node close terminates idle keep-alive connections after accepted requests drain', async () => {
   const bot = await createInitializedBot();
   const server = await serveWebhook(bot, {
+    secret: false,
     hostname: '127.0.0.1',
     port: 0,
     runtime: 'node',
@@ -483,6 +503,7 @@ test('AbortSignal uses the same idempotent Node shutdown completion', async () =
   const bot = await createInitializedBot();
   const controller = new AbortController();
   const server = await serveWebhook(bot, {
+    secret: false,
     hostname: '127.0.0.1',
     port: 0,
     runtime: 'node',
@@ -492,4 +513,36 @@ test('AbortSignal uses the same idempotent Node shutdown completion', async () =
   controller.abort();
   await withTimeout(server.finished, 'abort did not close the Node listener');
   assert.strictEqual(server.close(), server.finished);
+});
+
+test('Bun wrong-path responses cancel unread Fetch streams', async () => {
+  const bot = await createInitializedBot();
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Bun');
+  let handler: ((request: Request) => Promise<Response>) | undefined;
+  Object.defineProperty(globalThis, 'Bun', {
+    configurable: true,
+    value: {
+      serve(options: { fetch: (request: Request) => Promise<Response> }) {
+        handler = options.fetch;
+        return { port: 3000, stop: () => undefined };
+      },
+    },
+  });
+  try {
+    const server = await serveWebhook(bot, { runtime: 'bun', secret: 'valid_secret' });
+    assert.ok(handler);
+    let cancellations = 0;
+    const body = new ReadableStream<Uint8Array>({ cancel() { cancellations += 1; } });
+    const init: RequestInit & { readonly duplex: 'half' } = {
+      method: 'POST', body, duplex: 'half',
+    };
+    const response = await handler(new Request('http://localhost/other', init));
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get('connection'), 'close');
+    assert.equal(cancellations, 1);
+    await server.close();
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'Bun', descriptor);
+    else Reflect.deleteProperty(globalThis, 'Bun');
+  }
 });

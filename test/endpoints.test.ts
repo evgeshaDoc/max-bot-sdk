@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import {
+  existsSync, mkdtempSync, readFileSync, rmSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import type { URec } from '@tsofist/stem';
 import { isLosslessNumber } from 'lossless-json';
 
 import { Api } from '../src/api';
@@ -386,4 +393,156 @@ test('default long polling omits the empty types query', async () => {
   }));
   await api.getUpdates();
   assert.equal(new URL(requestUrl).searchParams.has('types'), false);
+});
+
+test('friendly API positional arguments win over widened extras', async (context) => {
+  const extra = {
+    chat_id: '2' as const,
+    user_id: '3' as const,
+    text: 'attacker',
+    message_id: 'wrong',
+    callback_id: 'wrong',
+    types: ['bot_started' as const],
+    notify: false,
+    title: 'Title',
+    count: 1,
+    limit: 1,
+    notification: 'ok',
+  };
+  const friendlyCases = [
+    {
+      name: 'chat send',
+      invoke: (api: Api) => api.sendMessageToChat('1', 'trusted', extra),
+      response: `{"message":${message}}`,
+      query: { chat_id: '1' },
+      body: { text: 'trusted', notify: false },
+    },
+    {
+      name: 'user send',
+      invoke: (api: Api) => api.sendMessageToUser('1', 'trusted', extra),
+      response: `{"message":${message}}`,
+      query: { user_id: '1' },
+      body: { text: 'trusted', notify: false },
+    },
+    {
+      name: 'edit chat',
+      invoke: (api: Api) => api.editChatInfo('1', extra),
+      response: chat,
+      path: '/chats/1',
+      body: { title: 'Title' },
+    },
+    {
+      name: 'get messages',
+      invoke: (api: Api) => api.getMessages('1', extra),
+      response: '{"messages":[]}',
+      query: { chat_id: '1' },
+    },
+    {
+      name: 'edit message',
+      invoke: (api: Api) => api.editMessage('trusted', extra),
+      response: action,
+      query: { message_id: 'trusted' },
+      body: { text: 'attacker', notify: false },
+    },
+    {
+      name: 'delete message',
+      invoke: (api: Api) => api.deleteMessage('trusted', extra),
+      response: action,
+      query: { message_id: 'trusted' },
+    },
+    {
+      name: 'callback',
+      invoke: (api: Api) => api.answerOnCallback('trusted', extra),
+      response: action,
+      query: { callback_id: 'trusted' },
+      body: { notification: 'ok' },
+    },
+    {
+      name: 'members',
+      invoke: (api: Api) => api.getChatMembers('1', extra),
+      response: '{"members":[],"marker":null}',
+      path: '/chats/1/members',
+    },
+    {
+      name: 'updates',
+      invoke: (api: Api) => api.getUpdates('message_created', extra),
+      response: '{"updates":[],"marker":null}',
+      query: { types: 'message_created' },
+    },
+    {
+      name: 'pin',
+      invoke: (api: Api) => api.pinMessage('1', 'trusted', extra),
+      response: action,
+      path: '/chats/1/pin',
+      body: { message_id: 'trusted', notify: false },
+    },
+  ];
+  for (const item of friendlyCases) {
+    await context.test(item.name, async () => {
+      let calls = 0;
+      const api = new Api(createClient('token', {
+        fetch: async (input, init) => {
+          calls += 1;
+          const url = new URL(String(input));
+          if (item.path) assert.equal(url.pathname, item.path);
+          for (const [key, value] of Object.entries(item.query ?? {})) {
+            assert.equal(url.searchParams.get(key), value);
+          }
+          if (item.name === 'chat send') assert.equal(url.searchParams.has('user_id'), false);
+          if (item.name === 'user send') assert.equal(url.searchParams.has('chat_id'), false);
+          const body = JSON.parse(String(init?.body ?? '{}')) as URec;
+          for (const [key, value] of Object.entries(item.body ?? {})) {
+            assert.equal(body[key], value);
+          }
+          return new Response(item.response);
+        },
+      }));
+      await item.invoke(api);
+      assert.equal(calls, 1);
+    });
+  }
+});
+
+test('release version input is validated as data without shell execution', () => {
+  const workflow = readFileSync('.github/workflows/release.yml', 'utf8');
+  const validation = workflow.match(/name: Validate requested version\n {8}run: \|\n((?: {10}.*\n)+)/)?.[1]
+    .replace(/^ {10}/gm, '');
+  assert.ok(validation);
+  const directory = mkdtempSync(join(tmpdir(), 'max-sdk-release-'));
+  const marker = join(directory, 'executed');
+  const { version } = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string });
+  try {
+    for (const input of [version, `$(touch ${marker})`, `x"; touch ${marker}; #`, '1.2.3', 'v1.2.3', `${version}\n`]) {
+      const result: SpawnSyncReturns<string> = spawnSync('bash', ['-e', '-c', validation], {
+        env: { ...process.env, RELEASE_VERSION: input }, encoding: 'utf8',
+      });
+      assert.equal(existsSync(marker), false, 'version must not execute shell syntax');
+      assert.equal(result.status === 0, input === version, result.stderr);
+    }
+    for (const run of workflow.matchAll(/run: (?:\|\n(?: {10}.*\n)+|.*)/g)) {
+      assert.doesNotMatch(run[0], /\$\{\{/);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('release approval policy fails closed without required environment reviewers', () => {
+  const workflow = readFileSync('.github/workflows/release.yml', 'utf8');
+  const script = workflow.match(/name: Verify release approval policy[\s\S]*?run: \|\n((?: {10}.*\n)+)/)?.[1]
+    .replace(/^ {10}/gm, '');
+  assert.ok(script);
+  assert.match(workflow, /release:\n {4}needs: approval-policy/);
+  const directory = mkdtempSync(join(tmpdir(), 'max-sdk-approval-'));
+  try {
+    for (const rules of [[], [{ type: 'required_reviewers', reviewers: [] }],
+      [{ type: 'required_reviewers', reviewers: [{ type: 'User', reviewer: { id: 1 } }] }]]) {
+      const result: SpawnSyncReturns<string> = spawnSync('bash', ['-e', '-c', `gh() { printf '%s' "$RULES"; }\n${script}`], {
+        cwd: directory, env: { ...process.env, RULES: JSON.stringify(rules) }, encoding: 'utf8',
+      });
+      assert.equal(result.status === 0, (rules[0]?.reviewers.length ?? 0) > 0, result.stderr);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

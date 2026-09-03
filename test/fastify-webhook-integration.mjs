@@ -36,7 +36,7 @@ app.post('/webhook', webhookCallback(bot, fastifyWebhookAdapter, {
   secret: 'valid_secret', maxBodyBytes: 1024,
 }));
 const parsedApp = Fastify();
-parsedApp.post('/webhook', webhookCallback(bot, fastifyWebhookAdapter));
+parsedApp.post('/webhook', webhookCallback(bot, fastifyWebhookAdapter, { secret: false }));
 await app.listen({ host: '127.0.0.1', port: 0 });
 await parsedApp.listen({ host: '127.0.0.1', port: 0 });
 

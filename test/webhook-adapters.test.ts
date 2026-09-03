@@ -186,9 +186,9 @@ function keepAlivePost(url: URL, agent: Agent): Promise<RawHttpResponse> {
 test('processor validates options and applies the complete sanitized outcome table', async () => {
   const bot = await createInitializedBot();
   for (const maxBodyBytes of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
-    assert.throws(() => createWebhookHandler(bot, { maxBodyBytes }), TypeError);
+    assert.throws(() => createWebhookHandler(bot, { secret: false, maxBodyBytes }), TypeError);
   }
-  assert.doesNotThrow(() => createWebhookHandler(bot, { maxBodyBytes: 1 }));
+  assert.doesNotThrow(() => createWebhookHandler(bot, { secret: false, maxBodyBytes: 1 }));
 
   const wrongMethod = responseAdapter({
     method: 'GET',
@@ -227,7 +227,7 @@ test('processor validates options and applies the complete sanitized outcome tab
   assert.equal((await webhookCallback(
     bot,
     declaredLarge.adapter,
-    { maxBodyBytes: 1 },
+    { secret: false, maxBodyBytes: 1 },
   )()).status, 413);
   assert.equal(declaredLarge.getReads(), 0);
 
@@ -259,14 +259,14 @@ test('processor validates options and applies the complete sanitized outcome tab
   ];
   for (const [request, expectedStatus] of cases) {
     const configured = responseAdapter(request);
-    const response = await webhookCallback(bot, configured.adapter)();
+    const response = await webhookCallback(bot, configured.adapter, { secret: false })();
     assert.equal(response.status, expectedStatus);
     assert.equal(await response.text(), '');
   }
 
   const failingBot = await createInitializedBot();
   failingBot.use(() => { throw new Error('escaped middleware failure'); });
-  assert.equal((await createWebhookHandler(failingBot)(new Request('https://bot.test', {
+  assert.equal((await createWebhookHandler(failingBot, { secret: false })(new Request('https://bot.test', {
     method: 'POST', body: unsafeBody,
   }))).status, 500);
 });
@@ -287,7 +287,7 @@ test('Fetch ingress cancels a stream as soon as the actual byte limit is exceede
   const init: RequestInit & { readonly duplex: 'half' } = {
     method: 'POST', body: stream, duplex: 'half',
   };
-  const response = await createWebhookHandler(bot, { maxBodyBytes: 5 })(
+  const response = await createWebhookHandler(bot, { secret: false, maxBodyBytes: 5 })(
     new Request('https://bot.test', init),
   );
   assert.equal(response.status, 413);
@@ -427,7 +427,7 @@ test('Express route-local raw parser preserves bytes and rejects parsed objects'
     }),
     emptyExpressBodyLimit,
   );
-  app.post('/parsed', express.json(), webhookCallback(bot, expressWebhookAdapter));
+  app.post('/parsed', express.json(), webhookCallback(bot, expressWebhookAdapter, { secret: false }));
   const server = createServer(app);
   const url = await listen(server);
   try {
@@ -459,5 +459,51 @@ test('Express route-local raw parser preserves bytes and rejects parsed objects'
     })).status, 500);
   } finally {
     await close(server);
+  }
+});
+
+test('webhook authentication requires a secret or an explicit external-auth opt-out', async () => {
+  let dispatched = 0;
+  const bot = await createInitializedBot(() => { dispatched += 1; });
+  assert.throws(() => createWebhookHandler(bot), /secret/u);
+  assert.throws(() => createWebhookHandler(bot, { secret: undefined }), /secret/u);
+  const authenticated = createWebhookHandler(bot, { secret: 'valid_secret' });
+  assert.equal((await authenticated(new Request('https://bot.test', {
+    method: 'POST', body: unsafeBody,
+  }))).status, 401);
+  assert.equal(dispatched, 0);
+  const external = createWebhookHandler(bot, { secret: false });
+  assert.equal((await external(new Request('https://bot.test', {
+    method: 'POST', body: unsafeBody,
+  }))).status, 200);
+  assert.equal(dispatched, 1);
+});
+
+test('Fetch early rejections cancel unread bodies without waiting for cancellation', async () => {
+  const bot = await createInitializedBot();
+  const handler = createWebhookHandler(bot, { secret: 'valid_secret', maxBodyBytes: 512 });
+  const cases = [
+    { method: 'PUT', headers: secretHeader, status: 405 },
+    { method: 'POST', headers: {}, status: 401 },
+    { method: 'POST', headers: { ...secretHeader, 'content-length': '513' }, status: 413 },
+  ];
+  for (const { method, headers, status } of cases) {
+    let cancellations = 0;
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancellations += 1;
+        return new Promise(() => { /* Cancellation may never settle in an external stream. */ });
+      },
+    });
+    const init: RequestInit & { readonly duplex: 'half' } = {
+      method, headers, body, duplex: 'half',
+    };
+    const response = await withTimeout(
+      handler(new Request('https://bot.test', init)),
+      'untrusted stream cancellation blocked the response',
+    );
+    assert.equal(response.status, status);
+    assert.equal(cancellations, 1);
+    assert.equal(response.headers.get('connection'), 'close');
   }
 });
