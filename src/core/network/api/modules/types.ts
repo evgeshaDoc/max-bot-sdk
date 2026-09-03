@@ -1,154 +1,74 @@
-import { ReqOptions } from '../client';
 import type { EditMyCommandsDTO, EditMyCommandsResponse, GetMyInfoResponse } from './bots/types';
 import type {
-  AddChatMembersDTO, AddChatMembersResponse,
-  EditChatInfoDTO,
-  EditChatInfoResponse,
-  GetAllChatsDTO,
-  GetAllChatsResponse,
-  GetChatAdminsDTO,
-  GetChatAdminsResponse,
-  GetChatByIdDTO,
-  GetChatByIdResponse,
-  GetChatByLinkDTO,
-  GetChatByLinkResponse,
-  GetChatMembersDTO,
-  GetChatMembershipDTO,
-  GetChatMembershipResponse,
-  GetChatMembersResponse,
-  GetPinnedMessageDTO,
-  GetPinnedMessageResponse,
-  LeaveChatDTO,
-  LeaveChatResponse,
-  PinMessageDTO,
-  PinMessageResponse, RemoveChatMemberDTO, RemoveChatMemberResponse,
-  SendActionDTO,
-  SendActionResponse,
-  UnpinMessageDTO,
-  UnpinMessageResponse,
+  AddChatMembersDTO, AddChatMembersResponse, EditChatInfoDTO, EditChatInfoResponse,
+  GetChatAdminsDTO, GetChatAdminsResponse, GetChatByIdDTO, GetChatByIdResponse,
+  GetChatMembersDTO, GetChatMembersResponse,
+  GetChatMembershipDTO, GetChatMembershipResponse, GetPinnedMessageDTO,
+  GetPinnedMessageResponse, LeaveChatDTO, LeaveChatResponse, PinMessageDTO,
+  PinMessageResponse, RemoveChatMemberDTO, RemoveChatMemberResponse, RevokeChatAdminDTO,
+  RevokeChatAdminResponse, SendActionDTO, SendActionResponse, SetChatAdminsDTO,
+  SetChatAdminsResponse, UnpinMessageDTO, UnpinMessageResponse,
 } from './chats/types';
 import type {
-  AnswerOnCallbackDTO, AnswerOnCallbackResponse,
-  DeleteMessageDTO, DeleteMessageResponse,
-  EditMessageDTO, EditMessageResponse,
-  GetMessageDTO, GetMessageResponse,
-  GetMessagesDTO, GetMessagesResponse,
-  SendMessageDTO, SendMessageResponse,
+  AnswerOnCallbackDTO, AnswerOnCallbackResponse, DeleteMessageDTO, DeleteMessageResponse,
+  EditMessageDTO, EditMessageResponse, GetMessageDTO, GetMessageResponse, GetMessagesDTO,
+  GetMessagesResponse, SendMessageDTO, SendMessageResponse,
 } from './messages/types';
-import type { GetUpdatesDTO, GetUpdatesResponse } from './subscriptions/types';
-import { GetUploadUrlResponse, GetUploadUrlDTO } from './uploads/types';
+import type {
+  CreateSubscriptionDTO, CreateSubscriptionResponse, DeleteSubscriptionDTO,
+  DeleteSubscriptionResponse, GetSubscriptionsResponse, GetUpdatesDTO, GetUpdatesResponse,
+} from './subscriptions/types';
+import type { GetUploadUrlDTO, GetUploadUrlResponse } from './uploads/types';
+import type { GetVideoDTO, GetVideoResponse } from './videos/types';
 
-export * from './bots/types';
-export * from './messages/types';
-export * from './subscriptions/types';
+type ObjectPart<Request, Key extends PropertyKey> = Request extends Record<Key, infer Part>
+  ? Part
+  : object;
 
-export type FlattenReq<T extends Omit<ReqOptions, 'method'>> = T['body'] & T['query'] & T['path'];
+export type FlattenReq<Request> = ObjectPart<Request, 'body'>
+& ObjectPart<Request, 'query'>
+& ObjectPart<Request, 'path'>;
 
-export type ApiMethods = {
+export interface ApiMethods {
   GET: {
-    chats: {
-      req: GetAllChatsDTO,
-      res: GetAllChatsResponse,
-    },
-    'chats/{chat_id}': {
-      req: GetChatByIdDTO,
-      res: GetChatByIdResponse,
-    },
-    'chats/{chat_id}/members/admins': {
-      req: GetChatAdminsDTO,
-      res: GetChatAdminsResponse,
-    },
-    'chats/{chat_id}/members': {
-      req: GetChatMembersDTO,
-      res: GetChatMembersResponse,
-    },
-    'chats/{chat_id}/members/me': {
-      req: GetChatMembershipDTO,
-      res: GetChatMembershipResponse,
-    },
-    'chats/{chat_id}/pin': {
-      req: GetPinnedMessageDTO,
-      res: GetPinnedMessageResponse,
-    },
-    'chats/{chat_link}': {
-      req: GetChatByLinkDTO,
-      res: GetChatByLinkResponse,
-    },
-    me: {
-      req: {},
-      res: GetMyInfoResponse,
-    },
-    updates: {
-      req: GetUpdatesDTO,
-      res: GetUpdatesResponse,
-    },
-    messages: {
-      req: GetMessagesDTO,
-      res: GetMessagesResponse,
-    },
-    'messages/{message_id}': {
-      req: GetMessageDTO,
-      res: GetMessageResponse,
-    }
-  },
+    'chats/{chat_id}': { req: GetChatByIdDTO; res: GetChatByIdResponse };
+    'chats/{chat_id}/members/admins': { req: GetChatAdminsDTO; res: GetChatAdminsResponse };
+    'chats/{chat_id}/members': { req: GetChatMembersDTO; res: GetChatMembersResponse };
+    'chats/{chat_id}/members/me': { req: GetChatMembershipDTO; res: GetChatMembershipResponse };
+    'chats/{chat_id}/pin': { req: GetPinnedMessageDTO; res: GetPinnedMessageResponse };
+    me: { req: object; res: GetMyInfoResponse };
+    subscriptions: { req: object; res: GetSubscriptionsResponse };
+    updates: { req: GetUpdatesDTO; res: GetUpdatesResponse };
+    messages: { req: GetMessagesDTO; res: GetMessagesResponse };
+    'messages/{message_id}': { req: GetMessageDTO; res: GetMessageResponse };
+    'videos/{video_token}': { req: GetVideoDTO; res: GetVideoResponse };
+  };
   POST: {
-    'chats/{chat_id}/actions': {
-      req: SendActionDTO,
-      res: SendActionResponse,
-    },
-    'chats/{chat_id}/members': {
-      req: AddChatMembersDTO,
-      res: AddChatMembersResponse,
-    },
-    messages: {
-      req: SendMessageDTO,
-      res: SendMessageResponse,
-    },
-    uploads: {
-      req: GetUploadUrlDTO,
-      res: GetUploadUrlResponse,
-    },
-    answers: {
-      req: AnswerOnCallbackDTO,
-      res: AnswerOnCallbackResponse,
-    }
-  },
+    'chats/{chat_id}/actions': { req: SendActionDTO; res: SendActionResponse };
+    'chats/{chat_id}/members/admins': { req: SetChatAdminsDTO; res: SetChatAdminsResponse };
+    'chats/{chat_id}/members': { req: AddChatMembersDTO; res: AddChatMembersResponse };
+    subscriptions: { req: CreateSubscriptionDTO; res: CreateSubscriptionResponse };
+    messages: { req: SendMessageDTO; res: SendMessageResponse };
+    uploads: { req: GetUploadUrlDTO; res: GetUploadUrlResponse };
+    answers: { req: AnswerOnCallbackDTO; res: AnswerOnCallbackResponse };
+  };
   PATCH: {
-    'me/commands': {
-      req: EditMyCommandsDTO,
-      res: EditMyCommandsResponse,
-    },
-    'chats/{chat_id}': {
-      req: EditChatInfoDTO,
-      res: EditChatInfoResponse,
-    }
-  },
+    'me/commands': { req: EditMyCommandsDTO; res: EditMyCommandsResponse };
+    'chats/{chat_id}': { req: EditChatInfoDTO; res: EditChatInfoResponse };
+  };
   PUT: {
-    messages: {
-      req: EditMessageDTO,
-      res: EditMessageResponse,
-    },
-    'chats/{chat_id}/pin': {
-      req: PinMessageDTO,
-      res: PinMessageResponse,
-    }
-  },
+    messages: { req: EditMessageDTO; res: EditMessageResponse };
+    'chats/{chat_id}/pin': { req: PinMessageDTO; res: PinMessageResponse };
+  };
   DELETE: {
-    messages: {
-      req: DeleteMessageDTO,
-      res: DeleteMessageResponse,
-    },
-    'chats/{chat_id}/pin': {
-      req: UnpinMessageDTO,
-      res: UnpinMessageResponse,
-    },
-    'chats/{chat_id}/members': {
-      req: RemoveChatMemberDTO,
-      res: RemoveChatMemberResponse,
-    },
-    'chats/{chat_id}/members/me': {
-      req: LeaveChatDTO,
-      res: LeaveChatResponse,
-    },
-  }
-};
+    messages: { req: DeleteMessageDTO; res: DeleteMessageResponse };
+    subscriptions: { req: DeleteSubscriptionDTO; res: DeleteSubscriptionResponse };
+    'chats/{chat_id}/pin': { req: UnpinMessageDTO; res: UnpinMessageResponse };
+    'chats/{chat_id}/members': { req: RemoveChatMemberDTO; res: RemoveChatMemberResponse };
+    'chats/{chat_id}/members/me': { req: LeaveChatDTO; res: LeaveChatResponse };
+    'chats/{chat_id}/members/admins/{user_id}': {
+      req: RevokeChatAdminDTO;
+      res: RevokeChatAdminResponse;
+    };
+  };
+}

@@ -1,4 +1,4 @@
-import {
+import type {
   AudioAttachmentRequest,
   FileAttachmentRequest,
   ImageAttachmentRequest,
@@ -6,9 +6,9 @@ import {
   ShareAttachmentRequest,
   StickerAttachmentRequest,
   VideoAttachmentRequest,
-} from '../network/api';
+} from '../network/api/types/attachment-request';
 
-class Attachment {
+abstract class Attachment {
   toJson() {
     throw new Error('Attachment not implemented.');
   }

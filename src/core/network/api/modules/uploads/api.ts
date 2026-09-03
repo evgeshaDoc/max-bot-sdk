@@ -1,10 +1,10 @@
 import { BaseApi } from '../../base-api';
-import { FlattenReq } from '../types';
+import type { FlattenReq } from '../types';
 
-import { GetUploadUrlDTO } from './types';
+import type { GetUploadUrlDTO, GetUploadUrlResponse } from './types';
 
 export class UploadsApi extends BaseApi {
-  getUploadUrl = async ({ ...query }: FlattenReq<GetUploadUrlDTO>) => {
+  async getUploadUrl(query: FlattenReq<GetUploadUrlDTO>): Promise<GetUploadUrlResponse> {
     return this._post('uploads', { query });
-  };
+  }
 }

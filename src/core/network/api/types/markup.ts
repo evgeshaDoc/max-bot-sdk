@@ -1,16 +1,26 @@
-type MakeMarkup<Type extends string, Data extends object> = {
-  type: Type;
+import type { Int64 } from './int64';
+
+type MakeMarkup<MarkupType extends string, MarkupData extends object = object> = {
+  type: MarkupType;
   from: number;
   length: number;
 } & {
-  [key in keyof Data]: Data[key];
+  [key in keyof MarkupData]: MarkupData[key];
 };
 
 export type UserMentionMarkup = MakeMarkup<'user_mention', {
   user_link?: string | null;
-  user_id?: number | null;
+  user_id?: Int64 | null;
 }>;
 
-// TODO: Типизация для MarkupElement
 export type MarkupElement =
+  | MakeMarkup<'strong'>
+  | MakeMarkup<'emphasized'>
+  | MakeMarkup<'monospaced'>
+  | MakeMarkup<'link', { url: string }>
+  | MakeMarkup<'strikethrough'>
+  | MakeMarkup<'underline'>
+  | MakeMarkup<'heading'>
+  | MakeMarkup<'highlighted'>
+  | MakeMarkup<'quote'>
   | UserMentionMarkup;

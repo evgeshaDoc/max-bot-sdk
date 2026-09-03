@@ -1,13 +1,13 @@
-import type { BotCommand, BotInfo } from '../../types'
+import type { BotCommand, BotInfo } from '../../types/bot';
 
-export type GetMyInfoResponse = BotInfo
+export type GetMyInfoResponse = BotInfo;
 
 export type EditMyCommandsDTO = {
   body: {
-    commands: BotCommand[]
+    commands: readonly BotCommand[];
   }
-}
+};
 
 export type EditMyCommandsResponse = {
-  commands: BotCommand[]
-}
+  commands: BotCommand[];
+};

@@ -1,3 +1,7 @@
+import type { UUID } from '@tsofist/stem/lib/crypto/uuid/types';
+
+import type { Int64 } from './int64';
+
 export type ButtonIntent = 'default' | 'positive' | 'negative';
 
 export type CallbackButton = {
@@ -21,7 +25,35 @@ export type RequestContactButton = {
 export type RequestGeoLocationButton = {
   type: 'request_geo_location';
   text: string;
+  /** @default false */
   quick?: boolean;
+};
+
+export type ClipboardButton = {
+  type: 'clipboard';
+  text: string;
+  payload: string;
+};
+
+export type SendMessageButton = {
+  type: 'message';
+  text: string;
+  payload?: string | null;
+  intent?: ButtonIntent;
+};
+
+export type SendGeoLocationButton = {
+  type: 'user_geo_location';
+  text: string;
+  payload?: string | null;
+  /** @default false */
+  quick?: boolean;
+};
+
+export type SendContactButton = {
+  type: 'user_contact';
+  text: string;
+  payload?: string | null;
 };
 
 export type ChatButton = {
@@ -30,21 +62,28 @@ export type ChatButton = {
   chat_title: string;
   chat_description?: string | null;
   start_payload?: string | null;
-  uuid?: string | null;
+  uuid?: UUID | null;
 };
 
 export type OpenAppButton = {
   type: 'open_app';
   text: string;
-  web_app?: string | null;
-  contact_id?: number | null;
+  web_app: string;
+  contact_id?: Int64 | null;
   payload?: string | null;
 };
 
-export type Button =
+export type InlineButton =
   | CallbackButton
   | LinkButton
   | RequestContactButton
   | RequestGeoLocationButton
+  | SendMessageButton
   | ChatButton
-  | OpenAppButton;
+  | OpenAppButton
+  | ClipboardButton;
+
+export type ReplyButton = SendMessageButton | SendGeoLocationButton | SendContactButton;
+
+/** All supported MAX button shapes, discriminated by `type`. */
+export type Button = InlineButton | ReplyButton;

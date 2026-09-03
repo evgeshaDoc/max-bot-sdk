@@ -1,6 +1,9 @@
-import { NullableObject } from '../../../helpers/types';
+import type { Rec } from '@tsofist/stem';
 
-import { Button } from './keyboard';
+import type { NullableObject } from '../../../helpers/types';
+
+import type { InlineButton, ReplyButton } from './keyboard';
+import type { Int64 } from './int64';
 
 type MediaAttachmentRequestPayload = {
   token?: string;
@@ -35,7 +38,7 @@ export type ContactAttachmentRequest = {
   type: 'contact';
   payload: {
     name: string | null;
-    contact_id?: number | null;
+    contact_id?: Int64 | null;
     vcf_info?: string | null;
     vcf_phone?: string | null;
   }
@@ -51,8 +54,15 @@ export type StickerAttachmentRequest = {
 export type InlineKeyboardAttachmentRequest = {
   type: 'inline_keyboard';
   payload: {
-    buttons: Button[][]
+    buttons: InlineButton[][]
   }
+};
+
+export type ReplyKeyboardAttachmentRequest = {
+  type: 'reply_keyboard';
+  buttons: ReplyButton[][];
+  direct?: boolean;
+  direct_user_id?: Int64 | null;
 };
 
 export type LocationAttachmentRequest = {
@@ -71,7 +81,7 @@ export type ShareAttachmentRequest = {
 export type PhotoAttachmentRequestPayload = {
   url?: string | null;
   token?: string | null;
-  photos?: Record<string, string> | null;
+  photos?: Rec<{ token: string }> | null;
 };
 
 export type AttachmentRequest =
@@ -82,6 +92,7 @@ export type AttachmentRequest =
     | StickerAttachmentRequest
     | ContactAttachmentRequest
     | InlineKeyboardAttachmentRequest
+    | ReplyKeyboardAttachmentRequest
     | ShareAttachmentRequest
     | LocationAttachmentRequest;
 

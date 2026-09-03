@@ -1,16 +1,31 @@
-import { Context } from './context';
+import type { PromiseMay } from '@tsofist/stem';
 
-type MaybePromise<T> = T | Promise<T>;
+import type { Context } from './context';
 
 export type NextFn = () => Promise<void>;
 
-export type MiddlewareFn<Ctx extends Context> = (
-  ctx: Ctx,
-  next: NextFn,
-) => MaybePromise<unknown>;
+/** A synchronous or asynchronous predicate over a middleware context. */
+export type ContextPredicate<ContextType extends Context> = (
+  context: ContextType,
+) => PromiseMay<boolean>;
 
-export interface MiddlewareObj<Ctx extends Context> {
-  middleware: () => MiddlewareFn<Ctx>;
+export type MiddlewareFn<ContextType extends Context> = (
+  context: ContextType,
+  next: NextFn,
+) => PromiseMay<unknown>;
+
+/** Object exposing Composer-compatible middleware. */
+export interface MiddlewareObj<ContextType extends Context> {
+  /** Returns the middleware function. */
+  middleware: () => MiddlewareFn<ContextType>;
 }
 
-export type Middleware<Ctx extends Context> = MiddlewareFn<Ctx> | MiddlewareObj<Ctx>;
+export type Middleware<ContextType extends Context> =
+  MiddlewareFn<ContextType> | MiddlewareObj<ContextType>;
+
+/** Handles an error thrown inside a local Composer boundary. */
+export type MiddlewareErrorHandler<ContextType extends Context> = (
+  error: unknown,
+  context: ContextType,
+  next: NextFn,
+) => PromiseMay<void>;

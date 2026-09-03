@@ -1,7 +1,8 @@
-import { NullableObject } from '../../../helpers/types';
+import type { NullableObject } from '../../../helpers/types';
 
-import { Button } from './keyboard';
-import { User } from './user';
+import type { InlineButton, ReplyButton } from './keyboard';
+import type { User } from './user';
+import type { Int64 } from './int64';
 
 type MediaPayload = {
   url: string;
@@ -11,14 +12,14 @@ type MediaPayload = {
 export type PhotoAttachment = {
   type: 'image';
   payload: MediaPayload & {
-    photo_id: number;
+    photo_id: Int64;
   }
 };
 
 export type VideoAttachment = {
   type: 'video';
   payload: MediaPayload;
-  thumbnail?: string | null;
+  thumbnail?: { url: string } | null;
   width?: number | null;
   height?: number | null;
   duration?: number | null;
@@ -27,13 +28,14 @@ export type VideoAttachment = {
 export type AudioAttachment = {
   type: 'audio';
   payload: MediaPayload;
+  transcription?: string | null;
 };
 
 export type FileAttachment = {
   type: 'file';
   payload: MediaPayload;
   filename: string;
-  size: number;
+  size: Int64;
 };
 
 export type StickerAttachment = {
@@ -50,7 +52,7 @@ export type ContactAttachment = {
   type: 'contact';
   payload: {
     vcf_info?: string | null;
-    tam_info?: User | null;
+    max_info?: User | null;
   }
 };
 
@@ -71,8 +73,18 @@ export type LocationAttachment = {
 export type InlineKeyboardAttachment = {
   type: 'inline_keyboard';
   payload: {
-    buttons: Button[][]
+    buttons: InlineButton[][]
   }
+};
+
+export type ReplyKeyboardAttachment = {
+  type: 'reply_keyboard';
+  buttons: ReplyButton[][];
+};
+
+export type DataAttachment = {
+  type: 'data';
+  data: string;
 };
 
 export type Attachment =
@@ -83,5 +95,7 @@ export type Attachment =
   | StickerAttachment
   | ContactAttachment
   | InlineKeyboardAttachment
+  | ReplyKeyboardAttachment
   | ShareAttachment
-  | LocationAttachment;
+  | LocationAttachment
+  | DataAttachment;

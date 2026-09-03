@@ -1,41 +1,49 @@
 {
-  "name": "@maxhub/max-bot-api",
-  "version": "0.2.5",
-  "description": "Max Bot Framework",
-  "repository": "https://github.com/max-messenger/max-bot-api-client-ts",
-  "author": "Juice Development",
+  "name": "@tlman/max-bot-sdk",
+  "version": "0.2.5-tlman.1",
+  "description": "Lossless TypeScript SDK for the current MAX Bot API",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evgeshaDoc/max-bot-sdk.git"
+  },
+  "homepage": "https://github.com/evgeshaDoc/max-bot-sdk#readme",
+  "bugs": "https://github.com/evgeshaDoc/max-bot-sdk/issues",
+  "author": "Tlman",
   "license": "MIT",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.18.0"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
-    "./dist/"
+    "dist/",
+    "README.md",
+    "CHANGELOG.md",
+    "UPSTREAM.md",
+    "NOTICE",
+    "LICENSE"
   ],
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./types": {
-      "types": "./dist/types.d.ts",
-      "default": "./dist/types.js"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "types": [
-        "./dist/types.d.ts"
-      ]
-    }
+    "./*": "./dist/*.js"
   },
   "scripts": {
-    "build": "tsc",
-    "lint": "eslint ./src --ext ts --report-unused-disable-directives"
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:examples": "npm run build --silent && tsc --noEmit --strict --skipLibCheck --module Node16 --moduleResolution Node16 --target ES2020 examples/*.ts",
+    "lint": "eslint ./src ./test --ext ts --report-unused-disable-directives && node --check test/packed-consumer.mjs && node --check test/live-webhook-gate.mjs && node --check test/fastify-webhook-integration.mjs && node --check test/bun-webhook-smoke.mjs",
+    "test:compile": "node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && node --test .test-dist/test/*.test.js",
+    "test:webhook:fastify": "npm run build --silent && node test/fastify-webhook-integration.mjs",
+    "test:webhook:bun": "npm run build --silent && bun test/bun-webhook-smoke.mjs",
+    "test:pack": "node test/packed-consumer.mjs",
+    "prepack": "npm run clean && npm run build"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
+    "@types/express": "5.0.6",
     "@types/node": "^22.5.5",
     "@types/vcf": "^2.0.7",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
@@ -44,12 +52,14 @@
     "eslint-config-airbnb-base": "15.0.0",
     "eslint-config-airbnb-typescript": "^18.0.0",
     "eslint-plugin-import": "^2.25.2",
-    "mit-license": "^1.0.0",
-    "nodemon": "^3.1.7",
+    "express": "5.2.1",
+    "fastify": "5.12.1",
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@tsofist/stem": "8.2.1",
     "debug": "^4.3.7",
+    "lossless-json": "4.3.1",
     "vcf": "^2.1.2"
   }
 }

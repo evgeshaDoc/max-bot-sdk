@@ -4,14 +4,10 @@ import type {
   AddChatMembersDTO, AddChatMembersResponse,
   EditChatInfoDTO,
   EditChatInfoResponse,
-  GetAllChatsDTO,
-  GetAllChatsResponse,
   GetChatAdminsDTO,
   GetChatAdminsResponse,
   GetChatByIdDTO,
   GetChatByIdResponse,
-  GetChatByLinkDTO,
-  GetChatByLinkResponse,
   GetChatMembersDTO,
   GetChatMembershipDTO,
   GetChatMembershipResponse,
@@ -22,6 +18,8 @@ import type {
   LeaveChatResponse,
   PinMessageDTO,
   PinMessageResponse, RemoveChatMemberDTO, RemoveChatMemberResponse,
+  RevokeChatAdminDTO, RevokeChatAdminResponse,
+  SetChatAdminsDTO, SetChatAdminsResponse,
   SendActionDTO,
   SendActionResponse,
   UnpinMessageDTO,
@@ -29,21 +27,9 @@ import type {
 } from './types';
 
 export class ChatsApi extends BaseApi {
-  async getAll({ ...query }: FlattenReq<GetAllChatsDTO>): Promise<GetAllChatsResponse> {
-    return this._get('chats', {
-      query,
-    });
-  }
-
   async getById({ chat_id }: FlattenReq<GetChatByIdDTO>): Promise<GetChatByIdResponse> {
     return this._get('chats/{chat_id}', {
       path: { chat_id },
-    });
-  }
-
-  async getByLink({ chat_link }: FlattenReq<GetChatByLinkDTO>): Promise<GetChatByLinkResponse> {
-    return this._get('chats/{chat_link}', {
-      path: { chat_link },
     });
   }
 
@@ -68,6 +54,20 @@ export class ChatsApi extends BaseApi {
     });
   }
 
+  async setChatAdmins(
+    { chat_id, ...body }: FlattenReq<SetChatAdminsDTO>,
+  ): Promise<SetChatAdminsResponse> {
+    return this._post('chats/{chat_id}/members/admins', { path: { chat_id }, body });
+  }
+
+  async revokeChatAdmin(
+    { chat_id, user_id }: FlattenReq<RevokeChatAdminDTO>,
+  ): Promise<RevokeChatAdminResponse> {
+    return this._delete('chats/{chat_id}/members/admins/{user_id}', {
+      path: { chat_id, user_id },
+    });
+  }
+
   async addChatMembers(
     { chat_id, ...body }: FlattenReq<AddChatMembersDTO>,
   ): Promise<AddChatMembersResponse> {
@@ -87,11 +87,11 @@ export class ChatsApi extends BaseApi {
   }
 
   async removeChatMember(
-    { chat_id, ...body }: FlattenReq<RemoveChatMemberDTO>,
+    { chat_id, ...query }: FlattenReq<RemoveChatMemberDTO>,
   ): Promise<RemoveChatMemberResponse> {
     return this._delete('chats/{chat_id}/members', {
       path: { chat_id },
-      body,
+      query,
     });
   }
 

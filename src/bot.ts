@@ -1,100 +1,177 @@
 import createDebug from 'debug';
-import { Composer } from './composer';
-import { Context } from './context';
-import { MaybePromise } from './core/helpers/types';
-
-import {
-  BotInfo, ClientOptions, createClient, Update, UpdateType,
-} from './core/network/api';
-import { Polling } from './core/network/polling';
+import type { PromiseMay } from '@tsofist/stem';
 
 import { Api } from './api';
+import { Composer } from './composer';
+import { Context } from './context';
+import { createClient } from './core/network/api/client';
+import type { ClientOptions } from './core/network/api/client-types';
+import { BotNotInitializedError } from './core/network/api/error';
+import type { BotInfo } from './core/network/api/types/bot';
+import type { Update, UpdateType } from './core/network/api/types/update';
+import { Polling } from './core/network/polling';
 
-const debug = createDebug('one-me:main');
+const debug = createDebug('max-bot-sdk:bot');
 
-type BotConfig<Ctx extends Context> = {
-  clientOptions?: ClientOptions;
-  contextType: new (...args: ConstructorParameters<typeof Context>) => Ctx;
-};
+type ContextConstructor<ContextType extends Context> = new (
+  ...args: ConstructorParameters<typeof Context>
+) => ContextType;
 
-type LaunchOptions = {
-  allowedUpdates: UpdateType[],
-};
+/** Configuration used by {@link Bot}. */
+export interface BotConfig<ContextType extends Context> {
+  /** HTTP client settings shared by every API call. */
+  readonly clientOptions?: ClientOptions;
 
-const defaultConfig: BotConfig<Context> = {
-  contextType: Context,
-};
+  /** Context implementation instantiated for each known update. @default Context */
+  readonly contextType?: ContextConstructor<ContextType>;
+}
 
-export class Bot<Ctx extends Context = Context> extends Composer<Ctx> {
-  api: Api;
+/** Long-polling launch settings. */
+export interface LaunchOptions {
+  /** Update kinds requested from MAX. An empty list requests every known kind. @default [] */
+  readonly allowedUpdates?: readonly UpdateType[];
+}
 
-  public botInfo?: BotInfo;
+type PollingErrorHandler<ContextType extends Context> = (
+  error: unknown,
+  context: ContextType,
+) => PromiseMay<void>;
+
+function finishMiddleware(): Promise<void> {
+  return Promise.resolve();
+}
+
+/** MAX bot runtime with a single Composer middleware pipeline. */
+export class Bot<ContextType extends Context = Context> extends Composer<ContextType> {
+  /** API client bound to this bot token. */
+  readonly api: Api;
+
+  private initializedBotInfo?: BotInfo;
+
+  private readonly contextType: ContextConstructor<ContextType>;
+
+  private initialization?: Promise<BotInfo>;
 
   private polling?: Polling;
 
-  private pollingIsStarted = false;
+  private pollingLoop?: Promise<void>;
 
-  private config: BotConfig<Ctx>;
+  private pollingErrorHandler?: PollingErrorHandler<ContextType>;
 
-  constructor(token: string, config?: Partial<BotConfig<Ctx>>) {
+  constructor(token: string, config: BotConfig<ContextType> = {}) {
     super();
 
-    // @ts-ignore
-    this.config = { ...defaultConfig, ...config };
-    this.api = new Api(createClient(token, this.config.clientOptions));
+    this.contextType = config.contextType
+      ?? Context as ContextConstructor<ContextType>;
+    this.api = new Api(createClient(token, config.clientOptions));
 
-    debug('Created `Bot` instance');
+    debug('Created Bot instance');
   }
 
-  private handleError = (err: unknown, ctx: Ctx): MaybePromise<void> => {
-    process.exitCode = 1;
-    console.error('Unhandled error while processing', ctx.update);
-    throw err;
-  };
+  /** Bot identity cached after successful initialization. */
+  get botInfo(): BotInfo | undefined {
+    return this.initializedBotInfo;
+  }
 
-  catch(handler: (err: unknown, ctx: Ctx) => MaybePromise<void>) {
-    this.handleError = handler;
+  /**
+   * Loads and caches the bot identity.
+   * Concurrent callers share one request; a failed request can be retried explicitly.
+   * @returns The authenticated bot identity.
+   */
+  initialize(): Promise<BotInfo> {
+    if (!this.initialization) {
+      this.initialization = this.api.getMyInfo().then(
+        (botInfo) => {
+          this.initializedBotInfo = botInfo;
+          return botInfo;
+        },
+        (error: unknown) => {
+          this.initialization = undefined;
+          throw error;
+        },
+      );
+    }
+
+    return this.initialization;
+  }
+
+  /**
+   * Replaces the error handler used only by long polling.
+   * Public webhook dispatch deliberately bypasses this handler.
+   * @param handler - Polling error handler.
+   * @returns This bot for chaining.
+   */
+  catch(handler: PollingErrorHandler<ContextType>): this {
+    this.pollingErrorHandler = handler;
     return this;
   }
 
-  start = async (options?: LaunchOptions) => {
-    if (this.pollingIsStarted) {
-      debug('Long polling already running');
-      return;
+  /**
+   * Dispatches one already parsed update without making a network request.
+   * @param update - Known MAX update.
+   * @throws {BotNotInitializedError} If {@link initialize} has not succeeded.
+   */
+  dispatchUpdate(update: Update): Promise<void> {
+    if (!this.initializedBotInfo) {
+      return Promise.reject(new BotNotInitializedError());
     }
 
-    this.pollingIsStarted = true;
+    return this.dispatchMiddleware(update);
+  }
 
-    this.botInfo ??= await this.api.getMyInfo();
-    this.polling = new Polling(this.api, options?.allowedUpdates);
-
-    debug(`Starting @${this.botInfo.username}`);
-    await this.polling.loop(this.handleUpdate);
-  };
-
-  stop = () => {
-    if (!this.pollingIsStarted) {
-      debug('Long polling is not running');
-      return;
+  /**
+   * Starts development long polling after initialization.
+   * Repeated calls while polling is active share the current loop.
+   * @param options - Polling filters.
+   */
+  start(options: LaunchOptions = {}): Promise<void> {
+    if (!this.pollingLoop) {
+      const polling = new Polling(this.api, options.allowedUpdates);
+      this.polling = polling;
+      this.pollingLoop = this.runPolling(polling);
     }
 
+    return this.pollingLoop;
+  }
+
+  /** Stops the active long-poll request and any retry wait. */
+  stop(): void {
     this.polling?.stop();
-    this.pollingIsStarted = false;
-  };
+  }
 
-  private handleUpdate = async (update: Update) => {
-    const updateId = `${update.update_type}:${update.timestamp}`;
-    debug(`Processing update ${updateId}`);
-
-    const UpdateContext = this.config.contextType;
-    const ctx = new UpdateContext(update, this.api, this.botInfo);
-
+  private async runPolling(polling: Polling): Promise<void> {
     try {
-      await this.middleware()(ctx, () => Promise.resolve(undefined));
-    } catch (err) {
-      await this.handleError(err, ctx);
+      const botInfo = await this.initialize();
+      debug(`Starting @${botInfo.username}`);
+      await polling.loop(this.dispatchPollingUpdate.bind(this));
+    } finally {
+      this.polling = undefined;
+      this.pollingLoop = undefined;
+    }
+  }
+
+  private dispatchPollingUpdate(update: Update): Promise<void> {
+    return this.dispatchMiddleware(update, this.pollingErrorHandler);
+  }
+
+  private async dispatchMiddleware(
+    update: Update,
+    errorHandler?: PollingErrorHandler<ContextType>,
+  ): Promise<void> {
+    const updateId = `${update.update_type}:${update.timestamp}`;
+    const ContextType = this.contextType;
+    const context = new ContextType(update, this.api, this.initializedBotInfo);
+
+    debug(`Processing update ${updateId}`);
+    try {
+      await this.middleware()(context, finishMiddleware);
+    } catch (error) {
+      if (!errorHandler) {
+        throw error;
+      }
+      await errorHandler(error, context);
     } finally {
       debug(`Finished processing update ${updateId}`);
     }
-  };
+  }
 }

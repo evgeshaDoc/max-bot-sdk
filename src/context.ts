@@ -1,72 +1,77 @@
 import vCard from 'vcf';
-import type { Guard, Guarded, MaybeArray } from './core/helpers/types';
+import type { Guard, MaybeArray } from './core/helpers/types';
 import type {
-  AnswerOnCallbackExtra, BotInfo, BotStartedUpdate, Chat,
-  EditMessageExtra, FilteredUpdate, GetMessagesExtra, Message,
-  MessageCallbackUpdate, SenderAction, SendMessageExtra,
-  Update, UpdateType, User,
-} from './core/network/api';
+  AnswerOnCallbackExtra, EditMessageExtra, GetMessagesExtra, SendMessageExtra,
+} from './core/network/api/modules/messages/types';
+import type { BotInfo } from './core/network/api/types/bot';
+import type { SenderAction } from './core/network/api/types/chat';
+import type { Int64 } from './core/network/api/types/int64';
+import type { Message } from './core/network/api/types/message';
+import type {
+  BotStartedUpdate, MessageCallbackUpdate, Update,
+} from './core/network/api/types/update';
+import type { User } from './core/network/api/types/user';
 
 import { type Api } from './api';
 import {
   EditChatExtra,
-  GetAllChatsExtra,
   GetChatMembersExtra,
   PinMessageExtra,
-} from './core/network/api/modules';
+} from './core/network/api/modules/chats/types';
+import { compileFilterQuery } from './filter-query';
+import type { FilteredUpdateFor, FilterQuery } from './filter-query-types';
 
 export type FilteredContext<
-  Ctx extends Context,
-  Filter extends UpdateType | Guard<Ctx['update']>,
-> = Filter extends UpdateType
-  ? Ctx & Context<FilteredUpdate<Filter>>
-  : Ctx & Context<Guarded<Filter>>;
+  ContextType extends Context,
+  Filter extends FilterQuery | Guard<ContextType['update']>,
+> = Filter extends FilterQuery
+  ? ContextType & Context<FilteredUpdateFor<ContextType['update'], Filter>>
+  : Filter extends Guard<ContextType['update'], infer GuardedUpdate>
+    ? ContextType & Context<GuardedUpdate>
+    : never;
 
-type GetMessage<U extends Update> =
-  | U extends MessageCallbackUpdate
-    ? MessageCallbackUpdate['message']
-    : U extends { message: Message }
-      ? Message
+type GetMessage<UpdateValue extends Update> =
+  | UpdateValue extends MessageCallbackUpdate
+    ? UpdateValue['message']
+    : UpdateValue extends { message: Message }
+      ? UpdateValue['message']
       : undefined;
 
-type GetChatId<U extends Update> =
-    | U extends { chat_id: number }
-      ? number
-      : U extends MessageCallbackUpdate
-        ? number | undefined
-        : U extends { message: Message }
-          ? number
+type GetChatId<UpdateValue extends Update> =
+    | UpdateValue extends { chat_id: Int64 }
+      ? Int64
+      : UpdateValue extends MessageCallbackUpdate
+        ? Int64 | null | undefined
+        : UpdateValue extends { message: Message }
+          ? Int64 | null
           : undefined;
 
-type GetChat<U extends Update> =
-    | U extends { chat: Chat }
-      ? Chat
-      : undefined;
-
-type GetMsgId<U extends Update> =
-    | U extends { message_id: string }
+type GetMsgId<UpdateValue extends Update> =
+    | UpdateValue extends { message_id: string }
       ? string
-      : U extends MessageCallbackUpdate
+      : UpdateValue extends MessageCallbackUpdate
         ? string | undefined
-        : U extends { message: Message }
-          ? string
+        : UpdateValue extends { message: Message }
+          ? string | undefined
           : undefined;
 
-type GetCallback<U extends Update> =
-    | U extends MessageCallbackUpdate
-      ? MessageCallbackUpdate['callback']
+type GetCallback<UpdateValue extends Update> =
+    | UpdateValue extends MessageCallbackUpdate
+      ? UpdateValue['callback']
       : undefined;
 
-type GetUser<U extends Update> =
-    | U extends { user: User }
+type GetUser<UpdateValue extends Update> =
+    | UpdateValue extends { user: User }
       ? User
-      : U extends MessageCallbackUpdate
+      : UpdateValue extends MessageCallbackUpdate
         ? User
-        : undefined;
+        : UpdateValue extends { message: Message }
+          ? User | undefined
+          : undefined;
 
-type GetStartPayload<U extends Update> =
-    | U extends BotStartedUpdate
-      ? string | undefined | null
+type GetStartPayload<UpdateValue extends Update> =
+    | UpdateValue extends BotStartedUpdate
+      ? UpdateValue['payload']
       : undefined;
 
 type ContactInfo = {
@@ -86,24 +91,22 @@ type Sticker = {
   code: string;
 };
 
-export class Context<U extends Update = Update> {
+export class Context<UpdateValue extends Update = Update> {
   match?: RegExpExecArray;
 
   constructor(
-    readonly update: U,
+    readonly update: UpdateValue,
     readonly api: Api,
     readonly botInfo?: BotInfo,
   ) {}
 
-  has<Ctx extends Context, Filter extends UpdateType | Guard<Ctx['update']>>(
-    this: Ctx,
+  has<ContextType extends Context, Filter extends FilterQuery | Guard<ContextType['update']>>(
+    this: ContextType,
     filters: MaybeArray<Filter>,
-  ): this is FilteredContext<Ctx, Filter> {
-    for (const filter of Array.isArray(filters) ? filters : [filters]) {
-      if (typeof filter === 'function'
-        ? filter(this.update)
-        : filter === this.update.update_type
-      ) {
+  ): this is FilteredContext<ContextType, Filter> {
+    const filterList = (Array.isArray(filters) ? filters : [filters]) as readonly Filter[];
+    for (const filter of filterList) {
+      if (typeof filter === 'function' ? filter(this.update) : compileFilterQuery(filter)(this.update)) {
         return true;
       }
     }
@@ -111,13 +114,13 @@ export class Context<U extends Update = Update> {
     return false;
   }
 
-  assert<T extends string | number | object>(
-    value: T | undefined,
+  assert<Value extends string | number | object>(
+    value: Value | null | undefined,
     method: string,
-  ): asserts value is T {
-    if (value === undefined) {
+  ): asserts value is Value {
+    if (value === undefined || value === null) {
       throw new TypeError(
-        `Max: "${method}" isn't available for "${this.updateType}"`,
+        `MAX: "${method}" isn't available for "${this.updateType}"`,
       );
     }
   }
@@ -131,31 +134,27 @@ export class Context<U extends Update = Update> {
   }
 
   get startPayload() {
-    return getStartPayload(this.update) as GetStartPayload<U>;
-  }
-
-  get chat() {
-    return getChat(this.update) as GetChat<U>;
+    return getStartPayload(this.update) as GetStartPayload<UpdateValue>;
   }
 
   get chatId() {
-    return getChatId(this.update) as GetChatId<U>;
+    return getChatId(this.update) as GetChatId<UpdateValue>;
   }
 
   get message() {
-    return getMessage(this.update) as GetMessage<U>;
+    return getMessage(this.update) as GetMessage<UpdateValue>;
   }
 
   get messageId() {
-    return getMessageId(this.update) as GetMsgId<U>;
+    return getMessageId(this.update) as GetMsgId<UpdateValue>;
   }
 
   get callback() {
-    return getCallback(this.update) as GetCallback<U>;
+    return getCallback(this.update) as GetCallback<UpdateValue>;
   }
 
   get user() {
-    return getUser(this.update) as GetUser<U>;
+    return getUser(this.update) as GetUser<UpdateValue>;
   }
 
   private _contactInfo?: ContactInfo;
@@ -181,20 +180,12 @@ export class Context<U extends Update = Update> {
     return this.api.sendMessageToChat(this.chatId, text, extra);
   }
 
-  async getAllChats(extra?: GetAllChatsExtra) {
-    return this.api.getAllChats(extra);
-  }
-
-  async getChat(chatId?: number) {
+  async getChat(chatId?: Int64) {
     if (chatId !== undefined) {
       return this.api.getChat(chatId);
     }
     this.assert(this.chatId, 'getChat');
     return this.api.getChat(this.chatId);
-  }
-
-  async getChatByLink(link: string) {
-    return this.api.getChatByLink(link);
   }
 
   async editChatInfo(extra: EditChatExtra) {
@@ -244,7 +235,7 @@ export class Context<U extends Update = Update> {
     return this.api.getChatAdmins(this.chatId);
   }
 
-  async addChatMembers(userIds: number[]) {
+  async addChatMembers(userIds: Int64[]) {
     this.assert(this.chatId, 'addChatMembers');
     return this.api.addChatMembers(this.chatId, userIds);
   }
@@ -254,7 +245,7 @@ export class Context<U extends Update = Update> {
     return this.api.getChatMembers(this.chatId, extra);
   }
 
-  async removeChatMember(userId: number) {
+  async removeChatMember(userId: Int64) {
     this.assert(this.chatId, 'removeChatMember');
     return this.api.removeChatMember(this.chatId, userId);
   }
@@ -280,7 +271,7 @@ export class Context<U extends Update = Update> {
   }
 }
 
-const getChatId = (update: Update) => {
+function getChatId(update: Update) {
   if ('chat_id' in update) {
     return update.chat_id;
   }
@@ -288,50 +279,38 @@ const getChatId = (update: Update) => {
     return update.message.recipient.chat_id;
   }
 
-  if ('chat' in update) {
-    return update.chat.chat_id;
-  }
-
   return undefined;
-};
+}
 
-const getChat = (update: Update) => {
-  if ('chat' in update) {
-    return update.chat;
-  }
-
-  return undefined;
-};
-
-const getMessage = (update: Update) => {
+function getMessage(update: Update) {
   if ('message' in update) {
     return update.message;
   }
   return undefined;
-};
+}
 
-const getMessageId = (update: Update) => {
+function getMessageId(update: Update) {
   if ('message_id' in update) {
     return update.message_id;
   }
 
   if ('message' in update) {
-    return update.message?.body.mid;
+    return update.message?.body?.mid;
   }
 
   return undefined;
-};
+}
 
-const getCallback = (update: Update) => {
+function getCallback(update: Update) {
   if ('callback' in update) {
     return update.callback;
   }
   return undefined;
-};
+}
 
-const getContactInfo = (update: Update): ContactInfo | undefined => {
+function getContactInfo(update: Update): ContactInfo | undefined {
   const message = getMessage(update);
-  if (!message) return undefined;
+  if (!message?.body) return undefined;
   const contact = message.body.attachments?.find((attachment) => {
     return attachment.type === 'contact';
   });
@@ -342,11 +321,11 @@ const getContactInfo = (update: Update): ContactInfo | undefined => {
     tel: vcf.get('tel').valueOf() as string | undefined,
     fullName: vcf.get('fn').valueOf() as string | undefined,
   };
-};
+}
 
-const getLocation = (update: Update): Location | undefined => {
+function getLocation(update: Update): Location | undefined {
   const message = getMessage(update);
-  if (!message) return undefined;
+  if (!message?.body) return undefined;
   const location = message.body.attachments?.find((attachment) => {
     return attachment.type === 'location';
   });
@@ -355,11 +334,11 @@ const getLocation = (update: Update): Location | undefined => {
     latitude: location.latitude,
     longitude: location.longitude,
   };
-};
+}
 
-const getSticker = (update: Update): Sticker | undefined => {
+function getSticker(update: Update): Sticker | undefined {
   const message = getMessage(update);
-  if (!message) return undefined;
+  if (!message?.body) return undefined;
   const sticker = message.body.attachments?.find((attachment) => {
     return attachment.type === 'sticker';
   });
@@ -370,9 +349,9 @@ const getSticker = (update: Update): Sticker | undefined => {
     url: sticker.payload.url,
     code: sticker.payload.code,
   };
-};
+}
 
-const getUser = (update: Update): User | undefined => {
+function getUser(update: Update): User | undefined {
   if ('user' in update) {
     return update.user;
   }
@@ -386,11 +365,11 @@ const getUser = (update: Update): User | undefined => {
   }
 
   return undefined;
-};
+}
 
-const getStartPayload = (update: Update): string | null | undefined => {
+function getStartPayload(update: Update): string | null | undefined {
   if (update.update_type === 'bot_started') {
     return update.payload;
   }
   return undefined;
-};
+}
